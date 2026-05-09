@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>WC26 Predictor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #f4f7ff; }
+    #root { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // ─────────────────────────────────────────────────────────────
+    //  CONFIG — fill these in after setting up JSONBin (see README)
+    // ─────────────────────────────────────────────────────────────
+    const JSONBIN_ID  = "69ff5195adc21f119a771780";   // e.g. "6642a1c8acd3cb34a83b1234"
+    const JSONBIN_KEY = "$2a$10$g/nYeGlymnuTxTfd4kBmuet2DoP5zjKX.UTbdGiyVPLyaKzM4UXUi";   // e.g. "$2a$10$abc..."
+    // ─────────────────────────────────────────────────────────────
+
+    const { useState, useEffect } = React;
+
+    const PLAYERS = [
+      { id: "vinay",    name: "Vinay" },
+      { id: "hassan",   name: "Hassan" },
+      { id: "farid",    name: "Farid" },
+      { id: "pritesh",  name: "Pritesh" },
+      { id: "shakils",  name: "Shakil S" },
+      { id: "rizwan",   name: "Rizwan" },
+      { id: "ashy",     name: "Ashy" },
+      { id: "shakilsh", name: "Shakil Sh" },
+    ];
+
+    const POINTS = { gs1: 1, gs2: 1, gs3: 1, r32: 2, r16: 3, qf: 5, sf: 7, final: 10, bonus: 5 };
+
+    const ROUNDS = [
+      { id: "gs1",   label: "Matchday 1",    short: "MD1" },
+      { id: "gs2",   label: "Matchday 2",    short: "MD2" },
+      { id: "gs3",   label: "Matchday 3",    short: "MD3" },
+      { id: "r32",   label: "Round of 32",   short: "R32" },
+      { id: "r16",   label: "Round of 16",   short: "R16" },
+      { id: "qf",    label: "Quarter-Finals", short: "QF"  },
+      { id: "sf",    label: "Semi-Finals",    short: "SF"  },
+      { id: "final", label: "Final",          short: "FIN" },
+    ];
+
+    const STAGES = [
+      { id: "gs",    short: "GS"  },
+      { id: "r32",   short: "R32" },
+      { id: "r16",   short: "R16" },
+      { id: "qf",    short: "QF"  },
+      { id: "sf",    short: "SF"  },
+      { id: "final", short: "FIN" },
+    ];
+
+    const FLAGS = {
+      Mexico:"🇲🇽","South Africa":"🇿🇦","Korea Rep.":"🇰🇷",Czechia:"🇨🇿",Canada:"🇨🇦","Bosnia-Herz.":"🇧🇦",Qatar:"🇶🇦",Switzerland:"🇨🇭",Brazil:"🇧🇷",Morocco:"🇲🇦",Haiti:"🇭🇹",Scotland:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",USA:"🇺🇸",Paraguay:"🇵🇾",Australia:"🇦🇺",Türkiye:"🇹🇷",Germany:"🇩🇪",Curaçao:"🇨🇼","Ivory Coast":"🇨🇮",Ecuador:"🇪🇨",Netherlands:"🇳🇱",Japan:"🇯🇵",Sweden:"🇸🇪",Tunisia:"🇹🇳",Belgium:"🇧🇪",Egypt:"🇪🇬",Iran:"🇮🇷","New Zealand":"🇳🇿",Spain:"🇪🇸","Cabo Verde":"🇨🇻","Saudi Arabia":"🇸🇦",Uruguay:"🇺🇾",France:"🇫🇷",Senegal:"🇸🇳",Iraq:"🇮🇶",Norway:"🇳🇴",Argentina:"🇦🇷",Algeria:"🇩🇿",Austria:"🇦🇹",Jordan:"🇯🇴",Portugal:"🇵🇹","DR Congo":"🇨🇩",Uzbekistan:"🇺🇿",Colombia:"🇨🇴",England:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",Croatia:"🇭🇷",Ghana:"🇬🇭",Panama:"🇵🇦"
+    };
+
+    const GS = [
+      {id:"ga1",g:"A",md:1,h:"Mexico",a:"South Africa"},{id:"ga2",g:"A",md:1,h:"Korea Rep.",a:"Czechia"},{id:"ga3",g:"A",md:2,h:"Czechia",a:"South Africa"},{id:"ga4",g:"A",md:2,h:"Mexico",a:"Korea Rep."},{id:"ga5",g:"A",md:3,h:"Czechia",a:"Mexico"},{id:"ga6",g:"A",md:3,h:"South Africa",a:"Korea Rep."},
+      {id:"gb1",g:"B",md:1,h:"Canada",a:"Bosnia-Herz."},{id:"gb2",g:"B",md:1,h:"Qatar",a:"Switzerland"},{id:"gb3",g:"B",md:2,h:"Switzerland",a:"Bosnia-Herz."},{id:"gb4",g:"B",md:2,h:"Canada",a:"Qatar"},{id:"gb5",g:"B",md:3,h:"Switzerland",a:"Canada"},{id:"gb6",g:"B",md:3,h:"Bosnia-Herz.",a:"Qatar"},
+      {id:"gc1",g:"C",md:1,h:"Brazil",a:"Morocco"},{id:"gc2",g:"C",md:1,h:"Haiti",a:"Scotland"},{id:"gc3",g:"C",md:2,h:"Scotland",a:"Morocco"},{id:"gc4",g:"C",md:2,h:"Brazil",a:"Haiti"},{id:"gc5",g:"C",md:3,h:"Scotland",a:"Brazil"},{id:"gc6",g:"C",md:3,h:"Morocco",a:"Haiti"},
+      {id:"gd1",g:"D",md:1,h:"USA",a:"Paraguay"},{id:"gd2",g:"D",md:1,h:"Australia",a:"Türkiye"},{id:"gd3",g:"D",md:2,h:"USA",a:"Australia"},{id:"gd4",g:"D",md:2,h:"Türkiye",a:"Paraguay"},{id:"gd5",g:"D",md:3,h:"Türkiye",a:"USA"},{id:"gd6",g:"D",md:3,h:"Paraguay",a:"Australia"},
+      {id:"ge1",g:"E",md:1,h:"Germany",a:"Curaçao"},{id:"ge2",g:"E",md:1,h:"Ivory Coast",a:"Ecuador"},{id:"ge3",g:"E",md:2,h:"Germany",a:"Ivory Coast"},{id:"ge4",g:"E",md:2,h:"Ecuador",a:"Curaçao"},{id:"ge5",g:"E",md:3,h:"Ecuador",a:"Germany"},{id:"ge6",g:"E",md:3,h:"Curaçao",a:"Ivory Coast"},
+      {id:"gf1",g:"F",md:1,h:"Netherlands",a:"Japan"},{id:"gf2",g:"F",md:1,h:"Sweden",a:"Tunisia"},{id:"gf3",g:"F",md:2,h:"Netherlands",a:"Sweden"},{id:"gf4",g:"F",md:2,h:"Tunisia",a:"Japan"},{id:"gf5",g:"F",md:3,h:"Japan",a:"Sweden"},{id:"gf6",g:"F",md:3,h:"Tunisia",a:"Netherlands"},
+      {id:"gg1",g:"G",md:1,h:"Belgium",a:"Egypt"},{id:"gg2",g:"G",md:1,h:"Iran",a:"New Zealand"},{id:"gg3",g:"G",md:2,h:"Belgium",a:"Iran"},{id:"gg4",g:"G",md:2,h:"New Zealand",a:"Egypt"},{id:"gg5",g:"G",md:3,h:"New Zealand",a:"Belgium"},{id:"gg6",g:"G",md:3,h:"Egypt",a:"Iran"},
+      {id:"gh1",g:"H",md:1,h:"Spain",a:"Cabo Verde"},{id:"gh2",g:"H",md:1,h:"Saudi Arabia",a:"Uruguay"},{id:"gh3",g:"H",md:2,h:"Spain",a:"Saudi Arabia"},{id:"gh4",g:"H",md:2,h:"Uruguay",a:"Cabo Verde"},{id:"gh5",g:"H",md:3,h:"Uruguay",a:"Spain"},{id:"gh6",g:"H",md:3,h:"Cabo Verde",a:"Saudi Arabia"},
+      {id:"gi1",g:"I",md:1,h:"France",a:"Senegal"},{id:"gi2",g:"I",md:1,h:"Iraq",a:"Norway"},{id:"gi3",g:"I",md:2,h:"France",a:"Iraq"},{id:"gi4",g:"I",md:2,h:"Norway",a:"Senegal"},{id:"gi5",g:"I",md:3,h:"Norway",a:"France"},{id:"gi6",g:"I",md:3,h:"Senegal",a:"Iraq"},
+      {id:"gj1",g:"J",md:1,h:"Argentina",a:"Algeria"},{id:"gj2",g:"J",md:1,h:"Austria",a:"Jordan"},{id:"gj3",g:"J",md:2,h:"Argentina",a:"Austria"},{id:"gj4",g:"J",md:2,h:"Jordan",a:"Algeria"},{id:"gj5",g:"J",md:3,h:"Jordan",a:"Argentina"},{id:"gj6",g:"J",md:3,h:"Algeria",a:"Austria"},
+      {id:"gk1",g:"K",md:1,h:"Portugal",a:"DR Congo"},{id:"gk2",g:"K",md:1,h:"Uzbekistan",a:"Colombia"},{id:"gk3",g:"K",md:2,h:"Portugal",a:"Uzbekistan"},{id:"gk4",g:"K",md:2,h:"Colombia",a:"DR Congo"},{id:"gk5",g:"K",md:3,h:"Colombia",a:"Portugal"},{id:"gk6",g:"K",md:3,h:"DR Congo",a:"Uzbekistan"},
+      {id:"gl1",g:"L",md:1,h:"England",a:"Croatia"},{id:"gl2",g:"L",md:1,h:"Ghana",a:"Panama"},{id:"gl3",g:"L",md:2,h:"England",a:"Ghana"},{id:"gl4",g:"L",md:2,h:"Panama",a:"Croatia"},{id:"gl5",g:"L",md:3,h:"Panama",a:"England"},{id:"gl6",g:"L",md:3,h:"Croatia",a:"Ghana"},
+    ];
+
+    const GROUPS = ["A","B","C","D","E","F","G","H","I","J","K","L"];
+
+    const defaultState = () => ({
+      pins: Object.fromEntries(PLAYERS.map(p => [p.id, "1111"])),
+      adminPass: "WC2026!",
+      predictions: {},
+      finalScores: {},
+      results: {},
+      locks: { gs1: false, gs2: false, gs3: false, r32: false, r16: false, qf: false, sf: false, final: false },
+      koFixtures: [],
+    });
+
+    const flag = t => FLAGS[t] || "🏳️";
+
+    function calcScores(state) {
+      const allFx = [...GS.map(f => ({ ...f, round: `gs${f.md}` })), ...state.koFixtures];
+      const scores = {};
+      PLAYERS.forEach(p => { scores[p.id] = { total: 0, gs: 0, gs1: 0, gs2: 0, gs3: 0, r32: 0, r16: 0, qf: 0, sf: 0, final: 0 }; });
+      allFx.forEach(f => {
+        const res = state.results[f.id];
+        if (!res) return;
+        const pts = POINTS[f.round] || 0;
+        PLAYERS.forEach(p => {
+          const pred = state.predictions[`${p.id}_${f.id}`];
+          if (pred && pred === res.r) {
+            scores[p.id][f.round] = (scores[p.id][f.round] || 0) + pts;
+            scores[p.id].total += pts;
+            if (f.round === "final") {
+              const fs = state.finalScores[p.id];
+              if (fs && fs.home === res.hs && fs.away === res.as) {
+                scores[p.id].final += POINTS.bonus;
+                scores[p.id].total += POINTS.bonus;
+              }
+            }
+          }
+        });
+      });
+      PLAYERS.forEach(p => { scores[p.id].gs = scores[p.id].gs1 + scores[p.id].gs2 + scores[p.id].gs3; });
+      return scores;
+    }
+
+    const T = {
+      bg: "#f4f7ff", surface: "#ffffff", surface2: "#eef1fa",
+      border: "rgba(15,30,80,0.09)", blue: "#3b6ef8", blueLight: "rgba(59,110,248,0.12)",
+      gold: "#e8960a", goldLight: "rgba(232,150,10,0.12)", green: "#16a34a",
+      greenLight: "rgba(22,163,74,0.1)", red: "#dc2626", redLight: "rgba(220,38,38,0.1)",
+      cyan: "#0891b2", cyanLight: "rgba(8,145,178,0.12)", text: "#0f1c40",
+      muted: "#64748b", mutedLight: "rgba(100,116,139,0.1)", white: "#ffffff",
+    };
+
+    const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { background: ${T.bg}; margin: 0; }
+::-webkit-scrollbar { display: none; }
+.of { font-family: 'Outfit', sans-serif; }
+.btn-base { border: none; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 700; transition: all .18s; outline: none; }
+.btn-base:active { transform: scale(.94); }
+.pill-btn { border: none; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 700; white-space: nowrap; transition: all .18s; border-radius: 100px; padding: 7px 15px; font-size: 13px; }
+.pill-btn:active { transform: scale(.95); }
+.nav-btn { border: none; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px 10px; flex: 1; font-family: 'Outfit', sans-serif; transition: all .15s; }
+.card { background: ${T.surface}; border: 1px solid ${T.border}; border-radius: 18px; overflow: hidden; box-shadow: 0 1px 8px rgba(15,30,80,0.05); }
+.fx-card { background: ${T.surface}; border: 1px solid ${T.border}; border-radius: 14px; padding: 14px; margin-bottom: 10px; transition: border-color .2s, box-shadow .2s; box-shadow: 0 1px 4px rgba(15,30,80,0.04); }
+.fx-card:hover { border-color: rgba(59,110,248,0.25); box-shadow: 0 2px 12px rgba(59,110,248,0.08); }
+.inp { background: ${T.surface2}; border: 1.5px solid ${T.border}; border-radius: 12px; padding: 12px 16px; color: ${T.text}; font-family: 'Outfit', sans-serif; font-size: 15px; width: 100%; transition: border-color .2s; }
+.inp:focus { outline: none; border-color: ${T.blue}; }
+.inp::placeholder { color: ${T.muted}; }
+.big-btn { width: 100%; border: none; border-radius: 12px; padding: 13px; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 15px; cursor: pointer; transition: all .18s; }
+.big-btn:active { transform: scale(.98); opacity: .9; }
+.pred-btn { border-radius: 10px; padding: 8px 0; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 16px; border: 1.5px solid ${T.border}; background: ${T.surface2}; color: ${T.muted}; cursor: pointer; min-width: 46px; text-align: center; transition: all .2s; }
+.pred-btn:active { transform: scale(.9); }
+.pred-btn.h-on { background: linear-gradient(135deg,#3b6ef8,#2952d4); border-color: #3b6ef8; color: #fff; box-shadow: 0 0 16px rgba(59,110,248,.45); }
+.pred-btn.d-on { background: linear-gradient(135deg,#e8960a,#c47d06); border-color: #e8960a; color: #fff; box-shadow: 0 0 16px rgba(232,150,10,.45); }
+.pred-btn.a-on { background: linear-gradient(135deg,#0891b2,#0e7490); border-color: #0891b2; color: #fff; box-shadow: 0 0 16px rgba(8,145,178,.45); }
+.pred-btn.ok { background: linear-gradient(135deg,#16a34a,#15803d); border-color: #16a34a; color: #fff; box-shadow: 0 0 12px rgba(22,163,74,.35); }
+.pred-btn.ng { background: ${T.redLight}; border-color: rgba(220,38,38,.35); color: ${T.red}; }
+.pred-btn.ms { border-color: #16a34a; color: #16a34a; background: ${T.greenLight}; }
+`;
+
+    function App() {
+      const [state, setState] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [saving, setSaving] = useState(false);
+      const [tab, setTab] = useState("leaderboard");
+      const [player, setPlayer] = useState(null);
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [loginStep, setLoginStep] = useState("pick");
+      const [selectedPlayer, setSelectedPlayer] = useState(null);
+      const [pinInput, setPinInput] = useState("");
+      const [pinError, setPinError] = useState("");
+      const [activeGroup, setActiveGroup] = useState("A");
+      const [activeRound, setActiveRound] = useState("gs1");
+      const [toast, setToast] = useState("");
+      const [adminTab, setAdminTab] = useState("results");
+      const [koHome, setKoHome] = useState("");
+      const [koAway, setKoAway] = useState("");
+      const [koRound, setKoRound] = useState("r32");
+      const [adminDraft, setAdminDraft] = useState({});
+      const [editingPin, setEditingPin] = useState(null);
+      const [newPin, setNewPin] = useState("");
+      const [finalH, setFinalH] = useState("");
+      const [finalA, setFinalA] = useState("");
+      const [confetti, setConfetti] = useState([]);
+      const [displayPts, setDisplayPts] = useState(0);
+      const [touchStart, setTouchStart] = useState(null);
+      const [predRound, setPredRound] = useState(null);
+      const [predGroup, setPredGroup] = useState("A");
+
+      useEffect(() => { loadState(); }, []);
+
+      useEffect(() => {
+        if (!player || !state) return;
+        const target = calcScores(state)[player.id]?.total || 0;
+        if (displayPts === target) return;
+        const step = Math.ceil(Math.abs(target - displayPts) / 12);
+        const t = setInterval(() => {
+          setDisplayPts(v => {
+            if (v < target) return Math.min(v + step, target);
+            if (v > target) return Math.max(v - step, target);
+            clearInterval(t);
+            return v;
+          });
+        }, 40);
+        return () => clearInterval(t);
+      }, [player, state]);
+
+      async function loadState() {
+        if (JSONBIN_ID === "PLACEHOLDER") {
+          setState(defaultState());
+          setLoading(false);
+          return;
+        }
+        try {
+          const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}/latest`, {
+            headers: { "X-Master-Key": JSONBIN_KEY }
+          });
+          const d = await r.json();
+          if (d.message) {
+            showToast("⚠️ Load error: " + d.message);
+            setState(defaultState());
+          } else {
+            setState(d.record || defaultState());
+          }
+        } catch(e) {
+          showToast("⚠️ Load failed: " + e.message);
+          setState(defaultState());
+        }
+        setLoading(false);
+      }
+
+      async function saveState(next) {
+        setSaving(true);
+        if (JSONBIN_ID === "PLACEHOLDER") {
+          setState(next);
+          setSaving(false);
+          return;
+        }
+        try {
+          const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Master-Key": JSONBIN_KEY
+            },
+            body: JSON.stringify(next)
+          });
+          const d = await r.json();
+          if (d.message) {
+            showToast("⚠️ Save error: " + d.message);
+          } else {
+            setState(next);
+          }
+        } catch(e) {
+          showToast("⚠️ Save failed: " + e.message);
+        }
+        setSaving(false);
+      }
+
+      function showToast(msg) {
+        setToast(msg);
+        const duration = msg.includes("⚠️") ? 6000 : 2200; setTimeout(() => setToast(""), duration);
+      }
+
+      function handleLogin() {
+        if (!state) return;
+        if (pinInput === state.adminPass) {
+          setIsAdmin(true); setPlayer(null); setTab("leaderboard");
+          setLoginStep("pick"); setPinInput(""); return;
+        }
+        if (selectedPlayer && selectedPlayer.id !== "__admin__" && state.pins[selectedPlayer.id] === pinInput) {
+          setPlayer(selectedPlayer); setIsAdmin(false); setTab("predict");
+          setLoginStep("pick"); setPinInput(""); setPinError("");
+        } else {
+          setPinError("Wrong PIN — try again"); setPinInput("");
+        }
+      }
+
+      function handleLogout() { setPlayer(null); setIsAdmin(false); setTab("leaderboard"); }
+
+      async function savePrediction(fxId, val) {
+        if (!player || !state) return;
+        navigator.vibrate && navigator.vibrate(val ? 40 : 20);
+        const key = `${player.id}_${fxId}`;
+        const next = { ...state.predictions };
+        if (val === null) delete next[key]; else next[key] = val;
+        await saveState({ ...state, predictions: next });
+        showToast(val ? "Saved ✓" : "Cleared");
+      }
+
+      async function saveResult(fxId, r, hs, as_) {
+        if (!state) return;
+        const next = { ...state.results };
+        if (r === null) delete next[fxId]; else next[fxId] = { r, hs, as: as_ };
+        await saveState({ ...state, results: next });
+        showToast(r ? "Result saved ✓" : "Result cleared");
+      }
+
+      async function toggleLock(roundId) {
+        if (!state) return;
+        const wasLocked = state.locks[roundId];
+        await saveState({ ...state, locks: { ...state.locks, [roundId]: !wasLocked } });
+        showToast(wasLocked ? "Unlocked 🔓" : "Locked 🔒");
+      }
+
+      async function addKoFixture() {
+        if (!state || !koHome.trim() || !koAway.trim()) return;
+        const id = `${koRound}_${Date.now()}`;
+        await saveState({ ...state, koFixtures: [...state.koFixtures, { id, round: koRound, h: koHome.trim(), a: koAway.trim() }] });
+        setKoHome(""); setKoAway(""); showToast("Fixture added ✓");
+      }
+
+      async function removeKoFixture(id) {
+        if (!state) return;
+        await saveState({ ...state, koFixtures: state.koFixtures.filter(f => f.id !== id) });
+      }
+
+      async function savePin(playerId, pin) {
+        if (!state || pin.length < 4) return;
+        await saveState({ ...state, pins: { ...state.pins, [playerId]: pin } });
+        setEditingPin(null); setNewPin(""); showToast("PIN updated ✓");
+      }
+
+      async function saveFinalScore(h, a) {
+        if (!player || !state) return;
+        await saveState({ ...state, finalScores: { ...state.finalScores, [player.id]: { home: h, away: a } } });
+        showToast("Score saved ✓");
+      }
+
+      function fireConfetti() {
+        const pieces = Array.from({ length: 22 }, (_, i) => ({
+          id: i, x: 40 + Math.random() * 20,
+          color: ["#e8960a","#3b6ef8","#16a34a","#dc2626","#0891b2"][i % 5],
+          r: Math.random() * 4 + 3,
+        }));
+        setConfetti(pieces);
+        setTimeout(() => setConfetti([]), 1600);
+      }
+
+      function swipeGroup(dir) {
+        navigator.vibrate && navigator.vibrate(20);
+        const i = GROUPS.indexOf(activeGroup);
+        if (dir === "left"  && i < GROUPS.length - 1) setActiveGroup(GROUPS[i + 1]);
+        if (dir === "right" && i > 0)                 setActiveGroup(GROUPS[i - 1]);
+      }
+
+      const isGS     = r => r === "gs1" || r === "gs2" || r === "gs3";
+      const isLocked = r => state?.locks[r];
+      const scores   = state ? calcScores(state) : {};
+      const ranked   = [...PLAYERS].sort((a, b) => (scores[b.id]?.total || 0) - (scores[a.id]?.total || 0));
+      const topScore = ranked[0] ? scores[ranked[0].id]?.total || 1 : 1;
+
+      const lockedRounds = ROUNDS.filter(r => {
+        if (!state?.locks[r.id]) return false;
+        if (isGS(r.id)) return true;
+        return state?.koFixtures?.some(f => f.round === r.id);
+      });
+
+      function RoundTabs({ active, onSelect, tint }) {
+        const col  = tint || T.blue;
+        const glow = tint ? "rgba(8,145,178,.3)" : "rgba(59,110,248,.3)";
+        return (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+            {ROUNDS.map(r => {
+              const show = isGS(r.id) || state.koFixtures.some(f => f.round === r.id);
+              if (!show) return null;
+              const on = active === r.id;
+              return (
+                <button key={r.id} className="pill-btn btn-base" onClick={() => onSelect(r.id)} style={{
+                  flexShrink: 0,
+                  background: on ? col : T.surface2,
+                  color: on ? "#fff" : T.muted,
+                  border: on ? `1px solid ${col}` : `1px solid ${T.border}`,
+                  boxShadow: on ? `0 0 12px ${glow}` : "none",
+                }}>
+                  {r.short}{isLocked(r.id) ? " 🔒" : ""}
+                </button>
+              );
+            })}
+          </div>
+        );
+      }
+
+      function GroupTabs({ active, onSelect }) {
+        return (
+          <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginTop: 10 }}>
+            {GROUPS.map(g => {
+              const on = active === g;
+              return (
+                <button key={g} className="pill-btn btn-base" onClick={() => onSelect(g)} style={{
+                  flexShrink: 0, minWidth: 36,
+                  background: on ? T.gold : T.surface2,
+                  color: on ? "#fff" : T.muted,
+                  border: on ? `1px solid ${T.gold}` : `1px solid ${T.border}`,
+                  boxShadow: on ? `0 0 10px ${T.goldLight}` : "none",
+                }}>{g}</button>
+              );
+            })}
+          </div>
+        );
+      }
+
+      function FixtureCard({ fx }) {
+        const locked = isLocked(fx.round);
+        const result = state.results[fx.id];
+        const myPred = player ? state.predictions[`${player.id}_${fx.id}`] : null;
+
+        const btnClass = (v) => {
+          if (!result) return myPred === v ? (v === "H" ? "pred-btn h-on" : v === "D" ? "pred-btn d-on" : "pred-btn a-on") : "pred-btn";
+          if (myPred === v && result.r === v)  return "pred-btn ok";
+          if (myPred === v && result.r !== v)  return "pred-btn ng";
+          if (myPred !== v && result.r === v)  return "pred-btn ms";
+          return "pred-btn";
+        };
+
+        const handlePick = (v) => {
+          if (!player || locked) return;
+          if (result) { if (myPred === result.r) fireConfetti(); return; }
+          navigator.vibrate && navigator.vibrate(40);
+          savePrediction(fx.id, myPred === v ? null : v);
+        };
+
+        return (
+          <div className="fx-card">
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ flex: 1, textAlign: "right" }}>
+                <div style={{ fontSize: 16 }}>{flag(fx.h)}</div>
+                <div className="of" style={{ fontSize: 11, color: T.muted, fontWeight: 600, marginTop: 2 }}>{fx.h}</div>
+              </div>
+              {player && !isAdmin ? (
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button className={btnClass("H")} onClick={() => handlePick("H")}>1</button>
+                  <button className={btnClass("D")} onClick={() => handlePick("D")}>X</button>
+                  <button className={btnClass("A")} onClick={() => handlePick("A")}>2</button>
+                </div>
+              ) : (
+                <div className="of" style={{ color: T.muted, fontSize: 11, fontWeight: 700, padding: "0 8px" }}>VS</div>
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16 }}>{flag(fx.a)}</div>
+                <div className="of" style={{ fontSize: 11, color: T.muted, fontWeight: 600, marginTop: 2 }}>{fx.a}</div>
+              </div>
+            </div>
+            {(result || locked) && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+                {result ? (
+                  <span className="of" style={{ fontSize: 12, fontWeight: 700, color: myPred === result.r ? T.green : myPred ? T.red : T.muted }}>
+                    {result.r === "H" ? `${fx.h} win` : result.r === "D" ? "Draw" : `${fx.a} win`}
+                    {fx.round === "final" && result.hs !== undefined ? ` · ${result.hs}–${result.as}` : ""}
+                    <span style={{ marginLeft: 8 }}>{myPred ? (myPred === result.r ? "✓" : "✗") : ""}</span>
+                  </span>
+                ) : (
+                  <span className="of" style={{ fontSize: 12, color: T.gold, fontWeight: 700 }}>🔒 Locked</span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      function PredictionsView() {
+        if (lockedRounds.length === 0) {
+          return (
+            <div style={{ textAlign: "center", padding: "70px 24px" }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+              <div className="of" style={{ fontWeight: 800, fontSize: 20, color: T.text }}>Nothing unlocked yet</div>
+              <div className="of" style={{ color: T.muted, fontSize: 14, marginTop: 8 }}>Predictions are revealed once Shakil locks a round</div>
+            </div>
+          );
+        }
+
+        const activePredRound = predRound || lockedRounds[lockedRounds.length - 1].id;
+        const roundIsGS = isGS(activePredRound);
+        const fixtures = roundIsGS
+          ? GS.filter(f => f.g === predGroup && `gs${f.md}` === activePredRound).map(f => ({ ...f, round: activePredRound }))
+          : state.koFixtures.filter(f => f.round === activePredRound);
+
+        const predLabel  = v => v === "H" ? "1" : v === "D" ? "X" : v === "A" ? "2" : "–";
+        const predColour = v => v === "H" ? T.blue : v === "D" ? T.gold : v === "A" ? T.cyan : T.muted;
+        const predBg     = v => v === "H" ? T.blueLight : v === "D" ? T.goldLight : v === "A" ? T.cyanLight : T.mutedLight;
+
+        return (
+          <div>
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 14 }}>
+              {lockedRounds.map(r => {
+                const on = activePredRound === r.id;
+                return (
+                  <button key={r.id} className="pill-btn btn-base" onClick={() => setPredRound(r.id)} style={{
+                    flexShrink: 0,
+                    background: on ? T.blue : T.surface2,
+                    color: on ? "#fff" : T.muted,
+                    border: on ? `1px solid ${T.blue}` : `1px solid ${T.border}`,
+                    boxShadow: on ? "0 0 12px rgba(59,110,248,.3)" : "none",
+                  }}>
+                    {r.short} 🔒
+                  </button>
+                );
+              })}
+            </div>
+            {roundIsGS && <GroupTabs active={predGroup} onSelect={setPredGroup} />}
+            <div style={{ height: 14 }} />
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+              {[["1","Home win",T.blue,T.blueLight],["X","Draw",T.gold,T.goldLight],["2","Away win",T.cyan,T.cyanLight]].map(([v,label,col,bg]) => (
+                <div key={v} className="of" style={{ display: "flex", alignItems: "center", gap: 6, background: bg, border: `1px solid ${col}30`, borderRadius: 100, padding: "4px 12px", fontSize: 11, fontWeight: 700, color: col }}>
+                  <span style={{ fontWeight: 900 }}>{v}</span> {label}
+                </div>
+              ))}
+            </div>
+            {fixtures.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+                <div className="of" style={{ color: T.muted, fontSize: 14 }}>No fixtures for this selection</div>
+              </div>
+            ) : fixtures.map(fx => {
+              const result = state.results[fx.id];
+              const myPred = player ? state.predictions[`${player.id}_${fx.id}`] : null;
+              return (
+                <div key={fx.id} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, marginBottom: 14, overflow: "hidden", boxShadow: "0 1px 8px rgba(15,30,80,0.05)" }}>
+                  <div style={{ background: T.surface2, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.border}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>{flag(fx.h)}</span>
+                      <span className="of" style={{ fontWeight: 800, fontSize: 14, color: T.text }}>{fx.h}</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      {result ? (
+                        <div className="of" style={{ fontWeight: 900, fontSize: 11, letterSpacing: 1, background: T.green, color: "#fff", borderRadius: 8, padding: "3px 10px" }}>
+                          {result.r === "H" ? "1" : result.r === "D" ? "X" : "2"}
+                          {result.hs !== undefined ? ` · ${result.hs}–${result.as}` : ""}
+                        </div>
+                      ) : (
+                        <div className="of" style={{ fontSize: 11, color: T.muted, fontWeight: 700 }}>vs</div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span className="of" style={{ fontWeight: 800, fontSize: 14, color: T.text }}>{fx.a}</span>
+                      <span style={{ fontSize: 18 }}>{flag(fx.a)}</span>
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px 14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                    {PLAYERS.map(p => {
+                      const pred  = state.predictions[`${p.id}_${fx.id}`];
+                      const isMe  = player?.id === p.id;
+                      const correct = result && pred && pred === result.r;
+                      const wrong   = result && pred && pred !== result.r;
+                      return (
+                        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: isMe ? T.blueLight : T.surface2, border: `1px solid ${isMe ? T.blue + "40" : T.border}`, borderRadius: 10, padding: "7px 10px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                            <div style={{ width: 26, height: 26, borderRadius: "50%", background: isMe ? T.blue : T.surface, border: `1.5px solid ${isMe ? T.blue : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: isMe ? "#fff" : T.muted, flexShrink: 0 }}>
+                              {p.name.charAt(0)}
+                            </div>
+                            <span className="of" style={{ fontSize: 12, fontWeight: isMe ? 800 : 600, color: isMe ? T.blue : T.text }}>
+                              {p.name}{isMe ? " (you)" : ""}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ background: pred ? predBg(pred) : T.surface, color: pred ? predColour(pred) : T.muted, border: `1px solid ${pred ? predColour(pred) + "50" : T.border}`, borderRadius: 7, padding: "2px 8px", fontSize: 13, fontWeight: 900, fontFamily: "'Outfit', sans-serif", minWidth: 28, textAlign: "center" }}>
+                              {predLabel(pred)}
+                            </span>
+                            {correct && <span style={{ fontSize: 13 }}>✅</span>}
+                            {wrong   && <span style={{ fontSize: 13 }}>❌</span>}
+                            {result && !pred && <span className="of" style={{ fontSize: 10, color: T.muted }}>—</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+
+      function LeaderboardView() {
+        const now     = new Date();
+        const kickoff = new Date("2026-06-11T20:00:00Z");
+        const diff    = Math.max(0, kickoff.getTime() - now.getTime());
+        const days    = Math.floor(diff / 86400000);
+        const hrs     = Math.floor((diff % 86400000) / 3600000);
+        const started = diff <= 0;
+
+        return (
+          <div>
+            {confetti.length > 0 && (
+              <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 200 }}>
+                {confetti.map(p => (
+                  <div key={p.id} style={{ position: "absolute", left: `${p.x}%`, top: "40%", width: p.r * 2, height: p.r * 2, borderRadius: p.r > 5 ? 2 : p.r, background: p.color, animation: `fall${p.id % 3} 1.5s ease-out forwards`, opacity: 0.9 }} />
+                ))}
+                <style>{`
+                  @keyframes fall0{0%{transform:translate(0,0) rotate(0deg);opacity:1}100%{transform:translate(-80px,200px) rotate(360deg);opacity:0}}
+                  @keyframes fall1{0%{transform:translate(0,0) rotate(0deg);opacity:1}100%{transform:translate(120px,220px) rotate(-270deg);opacity:0}}
+                  @keyframes fall2{0%{transform:translate(0,0) rotate(0deg);opacity:1}100%{transform:translate(-60px,180px) rotate(180deg);opacity:0}}
+                `}</style>
+              </div>
+            )}
+
+            <div style={{ borderRadius: 22, overflow: "hidden", marginBottom: 20, background: "linear-gradient(160deg,#0c1d4a 0%,#1a3a8f 50%,#0c1d4a 100%)", border: "1px solid rgba(59,110,248,.2)", padding: "28px 20px", textAlign: "center", position: "relative" }}>
+              <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% -10%,rgba(59,110,248,.15) 0%,transparent 65%)" }} />
+              <div style={{ position: "relative" }}>
+                <div style={{ fontSize: 46, filter: "drop-shadow(0 0 16px rgba(232,150,10,.7))" }}>🏆</div>
+                <div className="of" style={{ fontWeight: 900, fontSize: 26, color: "#fff", letterSpacing: 3, marginTop: 10, textTransform: "uppercase" }}>World Cup 2026</div>
+                <div className="of" style={{ color: T.gold, fontWeight: 800, fontSize: 11, letterSpacing: 5, marginTop: 4 }}>PREDICTOR</div>
+                {started ? (
+                  <div className="of" style={{ marginTop: 12, color: "#4ade80", fontWeight: 700, fontSize: 14 }}>🔴 Tournament underway</div>
+                ) : (
+                  <div style={{ marginTop: 14, display: "inline-flex", gap: 10, background: "rgba(255,255,255,.08)", borderRadius: 14, padding: "8px 16px", border: "1px solid rgba(255,255,255,.12)" }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div className="of" style={{ color: T.gold, fontWeight: 900, fontSize: 22, lineHeight: 1 }}>{days}</div>
+                      <div className="of" style={{ color: "rgba(255,255,255,.5)", fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>DAYS</div>
+                    </div>
+                    <div className="of" style={{ color: "rgba(255,255,255,.3)", fontSize: 20, alignSelf: "center" }}>:</div>
+                    <div style={{ textAlign: "center" }}>
+                      <div className="of" style={{ color: T.gold, fontWeight: 900, fontSize: 22, lineHeight: 1 }}>{hrs}</div>
+                      <div className="of" style={{ color: "rgba(255,255,255,.5)", fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>HRS</div>
+                    </div>
+                    <div className="of" style={{ color: "rgba(255,255,255,.4)", fontSize: 11, alignSelf: "center", fontWeight: 600 }}>to kickoff</div>
+                  </div>
+                )}
+                <div className="of" style={{ color: "rgba(255,255,255,.4)", fontSize: 11, marginTop: 10, fontWeight: 500 }}>
+                  🏴󠁧󠁢󠁥󠁮󠁧󠁿 Jun 11 – Jul 19 · USA · Canada · Mexico
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 20 }}>
+              {ROUNDS.map(r => {
+                const locked = state.locks[r.id];
+                return (
+                  <div key={r.id} className="of" style={{ flexShrink: 0, background: locked ? T.blueLight : T.surface, border: locked ? `1px solid ${T.blue}40` : `1px solid ${T.border}`, borderRadius: 100, padding: "5px 12px", fontSize: 11, fontWeight: 700, color: locked ? T.blue : T.muted, whiteSpace: "nowrap" }}>
+                    {r.short}{locked ? " 🔒" : ""} · {r.id === "final" ? "10+5★" : `${POINTS[r.id]}pt`}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="card">
+              <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span className="of" style={{ color: T.text, fontWeight: 800, fontSize: 17 }}>⚡ Standings</span>
+                {saving && <span className="of" style={{ color: T.muted, fontSize: 11 }}>saving…</span>}
+              </div>
+              <div className="of" style={{ display: "grid", gridTemplateColumns: "32px 1fr 54px 40px 40px 36px 36px 36px 36px", gap: 2, padding: "8px 16px", borderBottom: `1px solid ${T.border}` }}>
+                {["#","PLAYER","PTS",...STAGES.map(s => s.short)].map((h, i) => (
+                  <div key={i} style={{ fontSize: 10, color: T.muted, fontWeight: 700, textAlign: i >= 2 ? "center" : "left" }}>{h}</div>
+                ))}
+              </div>
+              {ranked.map((p, i) => {
+                const s    = scores[p.id] || { total: 0 };
+                const isMe = player?.id === p.id;
+                const pct  = topScore > 0 ? s.total / topScore * 100 : 0;
+                const medals  = ["🥇","🥈","🥉"];
+                const rowBg   = isMe ? T.blueLight : i < 3 ? ["rgba(232,150,10,.06)","rgba(180,180,180,.04)","rgba(180,120,60,.04)"][i] : "transparent";
+                return (
+                  <div key={p.id} style={{ display: "grid", gridTemplateColumns: "32px 1fr 54px 40px 40px 36px 36px 36px 36px", gap: 2, padding: "12px 16px", borderBottom: i < ranked.length - 1 ? `1px solid ${T.border}` : "none", background: rowBg, borderLeft: isMe ? `3px solid ${T.blue}` : i === 0 ? "3px solid rgba(232,150,10,.4)" : "3px solid transparent", alignItems: "center" }}>
+                    <div style={{ textAlign: "center" }}>
+                      {i < 3 ? <span style={{ fontSize: 18 }}>{medals[i]}</span> : <span className="of" style={{ fontSize: 12, color: T.muted, fontWeight: 700 }}>{i + 1}</span>}
+                    </div>
+                    <div>
+                      <div className="of" style={{ fontWeight: isMe ? 800 : 700, fontSize: 13, color: isMe ? T.blue : T.text }}>
+                        {p.name}{isMe && <span style={{ fontSize: 10, color: T.blue, marginLeft: 6, fontWeight: 600 }}>you</span>}
+                      </div>
+                      <div style={{ height: 3, background: T.border, borderRadius: 2, marginTop: 5, width: "85%", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, background: i === 0 ? T.gold : isMe ? T.blue : T.muted, transition: "width .8s ease" }} />
+                      </div>
+                      {i > 0 && s.total > 0 && (
+                        <div className="of" style={{ fontSize: 10, color: T.muted, marginTop: 3, fontWeight: 600 }}>
+                          {(scores[ranked[0].id]?.total || 0) - s.total > 0 ? `↑ ${(scores[ranked[0].id]?.total || 0) - s.total} behind` : "🏆 Leading"}
+                        </div>
+                      )}
+                    </div>
+                    <div className="of" style={{ fontWeight: 900, fontSize: 18, textAlign: "center", color: i === 0 ? T.gold : isMe ? T.blue : T.text }}>{s.total || 0}</div>
+                    {STAGES.map(st => (
+                      <div key={st.id} className="of" style={{ textAlign: "center", fontSize: 12, color: s[st.id] > 0 ? T.text : T.border, fontWeight: s[st.id] > 0 ? 700 : 400 }}>
+                        {s[st.id] || "–"}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="card" style={{ marginTop: 14, padding: "16px 18px" }}>
+              <div className="of" style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>Scoring Guide</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {ROUNDS.map(r => (
+                  <div key={r.id} className="of" style={{ fontSize: 12, color: T.muted }}>
+                    {r.label}: <span style={{ color: T.text, fontWeight: 700, marginLeft: 4 }}>{r.id === "final" ? "10 +5★" : POINTS[r.id] + "pt"}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="of" style={{ fontSize: 11, color: T.muted, marginTop: 12, opacity: 0.6 }}>1 = Home win · X = Draw · 2 = Away win · tap again to clear</div>
+            </div>
+          </div>
+        );
+      }
+
+      function PredictView() {
+        if (!player) {
+          return (
+            <div style={{ textAlign: "center", padding: "70px 24px" }}>
+              <div style={{ fontSize: 52, filter: "drop-shadow(0 0 18px rgba(59,110,248,.4))" }}>🔐</div>
+              <div className="of" style={{ fontWeight: 900, fontSize: 22, color: T.text, marginTop: 16 }}>Sign in to predict</div>
+              <div className="of" style={{ color: T.muted, fontSize: 14, marginTop: 6, marginBottom: 28 }}>Your predictions stay private</div>
+              <button className="big-btn of" onClick={() => setTab("login")} style={{ background: T.blue, color: "#fff", boxShadow: "0 8px 24px rgba(59,110,248,.3)", maxWidth: 220, margin: "0 auto" }}>Sign In →</button>
+            </div>
+          );
+        }
+
+        const myScores = scores[player.id] || { total: 0 };
+        const gs = isGS(activeRound);
+
+        return (
+          <div>
+            <div style={{ borderRadius: 18, marginBottom: 16, overflow: "hidden", position: "relative", background: "linear-gradient(135deg,#0c1a3a,#0f2a5c)", border: "1px solid rgba(59,110,248,.2)", padding: "16px 18px" }}>
+              <div style={{ position: "absolute", right: -10, top: -10, fontSize: 80, opacity: 0.04 }}>⚽</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div className="of" style={{ color: "rgba(255,255,255,.5)", fontSize: 11, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase" }}>{player.name}'s Score</div>
+                  <div className="of" style={{ color: T.gold, fontSize: 44, fontWeight: 900, lineHeight: 1, marginTop: 4, filter: "drop-shadow(0 0 10px rgba(232,150,10,.5))" }}>{displayPts}</div>
+                  <div className="of" style={{ color: "rgba(255,255,255,.4)", fontSize: 11, marginTop: 2 }}>points</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end" }}>
+                  {STAGES.filter(s => myScores[s.id] > 0).map(s => (
+                    <div key={s.id} className="of" style={{ background: "rgba(255,255,255,.08)", borderRadius: 100, padding: "4px 12px", fontSize: 11, color: "#fff", fontWeight: 700 }}>
+                      {s.short} · {myScores[s.id]}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <RoundTabs active={activeRound} onSelect={setActiveRound} />
+
+            {gs ? (
+              <>
+                {isLocked(activeRound) && (
+                  <div className="of" style={{ background: T.goldLight, border: `1px solid ${T.gold}40`, borderRadius: 12, padding: "10px 14px", margin: "12px 0", fontSize: 13, color: T.gold, fontWeight: 700, textAlign: "center" }}>
+                    🔒 {ROUNDS.find(r => r.id === activeRound)?.label} is locked
+                  </div>
+                )}
+                <GroupTabs active={activeGroup} onSelect={setActiveGroup} />
+                <div style={{ height: 12 }} />
+                <div
+                  onTouchStart={e => setTouchStart(e.touches[0].clientX)}
+                  onTouchEnd={e => {
+                    if (touchStart === null) return;
+                    const dx = e.changedTouches[0].clientX - touchStart;
+                    if (Math.abs(dx) > 50) swipeGroup(dx < 0 ? "left" : "right");
+                    setTouchStart(null);
+                  }}
+                >
+                  {GS.filter(f => f.g === activeGroup && `gs${f.md}` === activeRound).map(f => (
+                    <FixtureCard key={f.id} fx={{ ...f, round: `gs${f.md}` }} />
+                  ))}
+                </div>
+                <div className="of" style={{ textAlign: "center", fontSize: 11, color: T.muted, marginTop: 8, opacity: 0.5 }}>← swipe to change group →</div>
+              </>
+            ) : (
+              <>
+                {isLocked(activeRound) && (
+                  <div className="of" style={{ background: T.goldLight, border: `1px solid ${T.gold}40`, borderRadius: 12, padding: "10px 14px", margin: "12px 0", fontSize: 13, color: T.gold, fontWeight: 700, textAlign: "center" }}>
+                    🔒 This round is locked
+                  </div>
+                )}
+                {state.koFixtures.filter(f => f.round === activeRound).length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                    <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
+                    <div className="of" style={{ color: T.muted, fontSize: 14 }}>Fixtures coming soon</div>
+                  </div>
+                ) : state.koFixtures.filter(f => f.round === activeRound).map(f => (
+                  <FixtureCard key={f.id} fx={f} />
+                ))}
+                {activeRound === "final" && state.koFixtures.some(f => f.round === "final") && (
+                  <div className="card" style={{ padding: 18, marginTop: 8 }}>
+                    <div className="of" style={{ fontWeight: 800, fontSize: 15, color: T.gold, marginBottom: 4 }}>⭐ Score Prediction</div>
+                    <div className="of" style={{ color: T.muted, fontSize: 12, marginBottom: 16 }}>Exact score = +5 bonus points</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14, justifyContent: "center", marginBottom: 16 }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 18, marginBottom: 8 }}>{flag(state.koFixtures.find(f => f.round === "final")?.h || "")}</div>
+                        <input type="number" min="0" max="20" value={finalH} onChange={e => setFinalH(e.target.value)} className="inp" style={{ width: 64, textAlign: "center", fontSize: 26, fontWeight: 800, padding: "8px" }} />
+                      </div>
+                      <div className="of" style={{ color: T.muted, fontWeight: 900, fontSize: 22 }}>–</div>
+                      <div style={{ textAlign: "center" }}>
+                        <input type="number" min="0" max="20" value={finalA} onChange={e => setFinalA(e.target.value)} className="inp" style={{ width: 64, textAlign: "center", fontSize: 26, fontWeight: 800, padding: "8px" }} />
+                        <div style={{ fontSize: 18, marginTop: 8 }}>{flag(state.koFixtures.find(f => f.round === "final")?.a || "")}</div>
+                      </div>
+                    </div>
+                    <button className="big-btn of" disabled={isLocked("final") || finalH === ""} onClick={() => saveFinalScore(Number(finalH), Number(finalA))} style={{ background: isLocked("final") ? T.surface2 : `linear-gradient(135deg,${T.gold},#c47d06)`, color: isLocked("final") ? T.muted : "#fff", cursor: isLocked("final") ? "default" : "pointer", boxShadow: isLocked("final") ? "none" : `0 6px 20px ${T.goldLight}` }}>Save Score Prediction</button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      }
+
+      function AdminView() {
+        const gs = isGS(activeRound);
+        const fixtures = gs
+          ? GS.filter(f => f.g === activeGroup && `gs${f.md}` === activeRound).map(f => ({ ...f, round: `gs${f.md}` }))
+          : state.koFixtures.filter(f => f.round === activeRound);
+
+        function setDraft(fxId, key, val) {
+          setAdminDraft(d => ({ ...d, [fxId]: { ...d[fxId], [key]: val } }));
+        }
+
+        async function submitResult(fx) {
+          const draft = adminDraft[fx.id] || {};
+          const r = draft.hasOwnProperty("r") ? draft.r : state.results[fx.id]?.r;
+          if (r === undefined) { showToast("Select a result first"); return; }
+          const hs  = draft.hs  !== undefined ? Number(draft.hs)  : state.results[fx.id]?.hs;
+          const as_ = draft.as  !== undefined ? Number(draft.as)  : state.results[fx.id]?.as;
+          await saveResult(fx.id, r ?? null, hs, as_);
+        }
+
+        return (
+          <div>
+            <div style={{ borderRadius: 18, padding: "16px 18px", marginBottom: 16, background: "linear-gradient(135deg,#0a1e2e,#083356)", border: "1px solid rgba(8,145,178,.3)" }}>
+              <div className="of" style={{ color: "#fff", fontWeight: 900, fontSize: 20 }}>⚙️ Admin Panel</div>
+              <div className="of" style={{ color: "rgba(8,145,178,.8)", fontSize: 12, marginTop: 2 }}>Shakil's control room</div>
+            </div>
+
+            <div style={{ display: "flex", gap: 5, marginBottom: 16, background: T.surface, borderRadius: 14, padding: 5, border: `1px solid ${T.border}` }}>
+              {["results","locks","fixtures","pins"].map(t => (
+                <button key={t} className="btn-base of" onClick={() => setAdminTab(t)} style={{ flex: 1, background: adminTab === t ? T.cyan : "transparent", color: adminTab === t ? "#fff" : T.muted, border: "none", borderRadius: 10, padding: "8px 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, boxShadow: adminTab === t ? "0 0 12px rgba(8,145,178,.4)" : "none" }}>{t}</button>
+              ))}
+            </div>
+
+            {adminTab === "results" && (
+              <div>
+                <RoundTabs active={activeRound} onSelect={setActiveRound} tint={T.cyan} />
+                {gs && <GroupTabs active={activeGroup} onSelect={setActiveGroup} />}
+                <div style={{ height: 10 }} />
+                {fixtures.map(fx => {
+                  const draft = adminDraft[fx.id] || {};
+                  const saved = state.results[fx.id];
+                  const r = draft.hasOwnProperty("r") ? draft.r : saved?.r;
+                  return (
+                    <div key={fx.id} className="fx-card" style={{ marginBottom: 10 }}>
+                      <div className="of" style={{ fontSize: 14, fontWeight: 800, color: T.text, textAlign: "center", marginBottom: 12 }}>
+                        {flag(fx.h)} {fx.h} <span style={{ color: T.muted }}>vs</span> {fx.a} {flag(fx.a)}
+                      </div>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                        {[["H",`${fx.h.split(" ")[0]} Win`],["D","Draw"],["A",`${fx.a.split(" ")[0]} Win`]].map(([v, label]) => (
+                          <button key={v} className="btn-base of" onClick={() => setDraft(fx.id, "r", r === v ? null : v)} style={{ flex: 1, borderRadius: 10, padding: "9px 6px", fontSize: 12, background: r === v ? T.cyan : T.surface2, color: r === v ? "#fff" : T.muted, border: r === v ? `1px solid ${T.cyan}` : `1px solid ${T.border}`, boxShadow: r === v ? "0 0 12px rgba(8,145,178,.4)" : "none" }}>{label}{r === v ? " ✕" : ""}</button>
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "center", alignItems: "center", marginBottom: 10 }}>
+                        <input type="number" min="0" max="20" placeholder="H" defaultValue={saved?.hs ?? ""} onChange={e => setDraft(fx.id, "hs", e.target.value)} className="inp" style={{ width: 60, textAlign: "center", fontSize: 20, fontWeight: 800, padding: "6px" }} />
+                        <span className="of" style={{ color: T.muted, fontWeight: 700, fontSize: 18 }}>–</span>
+                        <input type="number" min="0" max="20" placeholder="A" defaultValue={saved?.as ?? ""} onChange={e => setDraft(fx.id, "as", e.target.value)} className="inp" style={{ width: 60, textAlign: "center", fontSize: 20, fontWeight: 800, padding: "6px" }} />
+                        <span className="of" style={{ fontSize: 11, color: T.muted }}>optional</span>
+                      </div>
+                      <button className="big-btn of" onClick={() => submitResult(fx)} style={{ background: T.cyan, color: "#fff", marginBottom: 6, boxShadow: "0 4px 14px rgba(8,145,178,.3)" }}>{saved ? "Update Result" : "Save Result"}</button>
+                      {saved && <button className="big-btn of" onClick={() => saveResult(fx.id, null)} style={{ background: T.redLight, color: T.red, border: `1px solid ${T.red}40` }}>✕ Clear Result</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {adminTab === "locks" && (
+              <div>
+                <div className="of" style={{ color: T.muted, fontSize: 13, marginBottom: 14, textAlign: "center" }}>Lock rounds before they start to freeze predictions</div>
+                {ROUNDS.map(r => (
+                  <div key={r.id} className="fx-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div>
+                      <div className="of" style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{r.label}</div>
+                      <div className="of" style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{POINTS[r.id]}pt · {state.locks[r.id] ? "🔒 Locked" : "🟢 Open"}</div>
+                    </div>
+                    <button className="btn-base of" onClick={() => toggleLock(r.id)} style={{ borderRadius: 10, padding: "9px 16px", fontSize: 12, background: state.locks[r.id] ? T.redLight : T.greenLight, color: state.locks[r.id] ? T.red : T.green, border: state.locks[r.id] ? `1px solid ${T.red}40` : `1px solid ${T.green}40` }}>{state.locks[r.id] ? "🔓 Unlock" : "🔒 Lock"}</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {adminTab === "fixtures" && (
+              <div>
+                <div className="fx-card" style={{ marginBottom: 14 }}>
+                  <div className="of" style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 12 }}>Add Knockout Fixture</div>
+                  <select value={koRound} onChange={e => setKoRound(e.target.value)} className="inp" style={{ marginBottom: 8 }}>
+                    {ROUNDS.filter(r => !isGS(r.id)).map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                  </select>
+                  <input placeholder="Home team" value={koHome} onChange={e => setKoHome(e.target.value)} className="inp" style={{ marginBottom: 8 }} />
+                  <input placeholder="Away team" value={koAway} onChange={e => setKoAway(e.target.value)} className="inp" style={{ marginBottom: 12 }} />
+                  <button className="big-btn of" onClick={addKoFixture} style={{ background: `linear-gradient(135deg,${T.cyan},#0e7490)`, color: "#fff", boxShadow: "0 4px 14px rgba(8,145,178,.3)" }}>+ Add Fixture</button>
+                </div>
+                {state.koFixtures.length === 0 ? (
+                  <div className="of" style={{ textAlign: "center", color: T.muted, padding: 24, fontSize: 13 }}>No knockout fixtures added yet</div>
+                ) : state.koFixtures.map(f => (
+                  <div key={f.id} className="fx-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div>
+                      <div className="of" style={{ fontSize: 10, color: T.cyan, fontWeight: 700, letterSpacing: 1, marginBottom: 2 }}>{ROUNDS.find(r => r.id === f.round)?.label}</div>
+                      <div className="of" style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{flag(f.h)} {f.h} vs {f.a} {flag(f.a)}</div>
+                    </div>
+                    <button className="btn-base of" onClick={() => removeKoFixture(f.id)} style={{ borderRadius: 10, padding: "7px 12px", fontSize: 12, background: T.redLight, color: T.red, border: `1px solid ${T.red}40` }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {adminTab === "pins" && (
+              <div>
+                {PLAYERS.map(p => (
+                  <div key={p.id} className="fx-card" style={{ marginBottom: 8 }}>
+                    <div className="of" style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 8 }}>{p.name}</div>
+                    {editingPin === p.id ? (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input value={newPin} onChange={e => setNewPin(e.target.value)} placeholder="New PIN" maxLength={8} className="inp" style={{ flex: 1 }} />
+                        <button className="btn-base of" onClick={() => savePin(p.id, newPin)} style={{ borderRadius: 10, padding: "0 14px", background: T.cyan, color: "#fff", border: "none", fontSize: 12 }}>Save</button>
+                        <button className="btn-base of" onClick={() => { setEditingPin(null); setNewPin(""); }} style={{ borderRadius: 10, padding: "0 12px", background: T.surface2, color: T.muted, border: `1px solid ${T.border}`, fontSize: 16 }}>✕</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span className="of" style={{ fontSize: 12, color: T.muted, letterSpacing: 3 }}>{"•".repeat(state.pins[p.id]?.length || 4)}</span>
+                        <button className="btn-base of" onClick={() => { setEditingPin(p.id); setNewPin(state.pins[p.id] || ""); }} style={{ borderRadius: 10, padding: "6px 14px", fontSize: 12, background: T.surface2, color: T.muted, border: `1px solid ${T.border}` }}>Change</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <div className="fx-card">
+                  <div className="of" style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 8 }}>Admin Password</div>
+                  {editingPin === "__adminpass__" ? (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input value={newPin} onChange={e => setNewPin(e.target.value)} placeholder="New password" className="inp" style={{ flex: 1 }} />
+                      <button className="btn-base of" onClick={async () => { await saveState({ ...state, adminPass: newPin }); setEditingPin(null); setNewPin(""); showToast("Updated ✓"); }} style={{ borderRadius: 10, padding: "0 14px", background: T.cyan, color: "#fff", border: "none", fontSize: 12 }}>Save</button>
+                      <button className="btn-base of" onClick={() => { setEditingPin(null); setNewPin(""); }} style={{ borderRadius: 10, padding: "0 12px", background: T.surface2, color: T.muted, border: `1px solid ${T.border}`, fontSize: 16 }}>✕</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span className="of" style={{ fontSize: 12, color: T.muted }}>••••••</span>
+                      <button className="btn-base of" onClick={() => { setEditingPin("__adminpass__"); setNewPin(state.adminPass); }} style={{ borderRadius: 10, padding: "6px 14px", fontSize: 12, background: T.surface2, color: T.muted, border: `1px solid ${T.border}` }}>Change</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      function LoginView() {
+        return (
+          <div style={{ maxWidth: 360, margin: "0 auto", paddingTop: 24 }}>
+            {loginStep === "pick" && (
+              <>
+                <div style={{ textAlign: "center", marginBottom: 28 }}>
+                  <div style={{ fontSize: 48, filter: "drop-shadow(0 0 16px rgba(59,110,248,.4))" }}>⚽</div>
+                  <div className="of" style={{ fontWeight: 900, fontSize: 24, color: T.text, marginTop: 14 }}>Who are you?</div>
+                  <div className="of" style={{ color: T.muted, fontSize: 14, marginTop: 6 }}>Select your name to get started</div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                  {PLAYERS.map(p => (
+                    <button key={p.id} className="btn-base of" onClick={() => { setSelectedPlayer(p); setLoginStep("pin"); setPinError(""); }} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px 10px", fontSize: 15, color: T.text, boxShadow: "0 2px 8px rgba(15,30,80,0.06)" }}>{p.name}</button>
+                  ))}
+                </div>
+                <button className="btn-base of" onClick={() => { setSelectedPlayer({ id: "__admin__", name: "Admin" }); setLoginStep("pin"); }} style={{ width: "100%", background: T.cyanLight, border: `1px solid ${T.cyan}40`, borderRadius: 14, padding: "13px", fontSize: 13, color: T.cyan, fontWeight: 700 }}>⚙️ Admin Login</button>
+              </>
+            )}
+            {loginStep === "pin" && (
+              <>
+                <div style={{ textAlign: "center", marginBottom: 28 }}>
+                  <div style={{ width: 68, height: 68, borderRadius: 22, margin: "0 auto", background: T.blueLight, border: `1px solid ${T.blue}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+                    {selectedPlayer?.id === "__admin__" ? "⚙️" : "👤"}
+                  </div>
+                  <div className="of" style={{ fontWeight: 900, fontSize: 22, color: T.text, marginTop: 14 }}>{selectedPlayer?.name}</div>
+                  <div className="of" style={{ color: T.muted, fontSize: 14, marginTop: 4 }}>Enter your PIN</div>
+                </div>
+                <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} placeholder="· · · ·" className="inp" style={{ textAlign: "center", fontSize: 28, letterSpacing: 10, marginBottom: 12 }} />
+                {pinError && (
+                  <div className="of" style={{ background: T.redLight, border: `1px solid ${T.red}40`, borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: T.red, marginBottom: 12, textAlign: "center" }}>{pinError}</div>
+                )}
+                <button className="big-btn of" onClick={handleLogin} style={{ background: T.blue, color: "#fff", boxShadow: "0 8px 24px rgba(59,110,248,.25)", marginBottom: 12 }}>Sign In →</button>
+                <button onClick={() => { setLoginStep("pick"); setPinInput(""); setPinError(""); }} className="of" style={{ width: "100%", background: "transparent", color: T.muted, border: "none", fontSize: 13, cursor: "pointer", padding: "8px" }}>← Back</button>
+                <div className="of" style={{ background: T.blueLight, border: `1px solid ${T.blue}30`, borderRadius: 12, padding: "10px 14px", marginTop: 10, fontSize: 12, color: T.blue, textAlign: "center" }}>
+                  Default PIN is <strong>1111</strong> — Shakil can reset yours
+                </div>
+              </>
+            )}
+          </div>
+        );
+      }
+
+      const navTabs = [
+        { id: "leaderboard", icon: "🏆", label: "Standings" },
+        { id: "predict",     icon: "⚽", label: "Predict"  },
+        { id: "reveal",      icon: "👁",  label: "Predictions" },
+        ...(isAdmin ? [{ id: "admin", icon: "⚙️", label: "Admin" }] : []),
+        ...(!player && !isAdmin ? [{ id: "login", icon: "👤", label: "Sign In" }] : []),
+      ];
+
+      if (loading) return (
+        <>
+          <style>{CSS}</style>
+          <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 52, filter: "drop-shadow(0 0 20px rgba(59,110,248,.5))" }}>⚽</div>
+              <div className="of" style={{ color: T.muted, fontSize: 13, letterSpacing: 3, marginTop: 14, fontWeight: 600 }}>LOADING</div>
+            </div>
+          </div>
+        </>
+      );
+
+      if (!state) return null;
+
+      return (
+        <>
+          <style>{CSS}</style>
+          <div style={{ background: T.bg, minHeight: "100vh", fontFamily: "'Outfit',sans-serif", maxWidth: 480, margin: "0 auto", paddingBottom: 80 }}>
+
+            {/* Header */}
+            <div style={{ background: "rgba(244,247,255,.95)", padding: "14px 18px", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div className="of" style={{ fontWeight: 900, fontSize: 16, color: T.text, letterSpacing: 0.5 }}>
+                  🏴󠁧󠁢󠁥󠁮󠁧󠁿 <span style={{ color: T.blue }}>WC26</span><span style={{ color: T.muted, fontWeight: 500 }}> Predictor</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {saving && <span className="of" style={{ color: T.muted, fontSize: 11 }}>saving…</span>}
+                  {(player || isAdmin) && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ background: T.blueLight, border: `1px solid ${T.blue}30`, borderRadius: 100, padding: "4px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span className="of" style={{ color: T.blue, fontSize: 12, fontWeight: 800 }}>{isAdmin ? "⚙️ Admin" : player?.name}</span>
+                        {player && <span className="of" style={{ color: T.gold, fontSize: 12, fontWeight: 900 }}>{scores[player.id]?.total || 0}</span>}
+                      </div>
+                      <button className="btn-base of" onClick={handleLogout} style={{ background: T.surface2, color: T.muted, border: `1px solid ${T.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 11 }}>Out</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Toast */}
+            {toast && (
+              <div className="of" style={{ position: "fixed", top: 68, left: "50%", transform: "translateX(-50%)", background: T.text, color: "#fff", borderRadius: 100, padding: "9px 22px", fontSize: 13, fontWeight: 700, zIndex: 100, whiteSpace: "nowrap", boxShadow: "0 8px 32px rgba(15,30,80,0.2)" }}>
+                {toast}
+              </div>
+            )}
+
+            {/* Content */}
+            <div style={{ padding: "16px 14px" }}>
+              {tab === "leaderboard" && LeaderboardView()}
+              {tab === "predict"     && PredictView()}
+              {tab === "reveal"      && PredictionsView()}
+              {tab === "admin"       && isAdmin && AdminView()}
+              {tab === "login"       && LoginView()}
+            </div>
+
+            {/* Bottom nav */}
+            <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, zIndex: 50, background: "rgba(244,247,255,.97)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderTop: `1px solid ${T.border}`, display: "flex", padding: "6px 0 4px" }}>
+              {navTabs.map(t => (
+                <button key={t.id} className="nav-btn" onClick={() => setTab(t.id)}>
+                  <div style={{ fontSize: 22, transition: "filter .2s", filter: tab === t.id ? "drop-shadow(0 0 6px rgba(59,110,248,.7))" : "none" }}>{t.icon}</div>
+                  <span className="of" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.3, color: tab === t.id ? T.blue : T.muted, transition: "color .2s" }}>{t.label}</span>
+                  <div style={{ height: 2, width: tab === t.id ? 20 : 0, background: T.blue, borderRadius: 1, transition: "width .25s ease" }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
