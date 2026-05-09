@@ -88,6 +88,7 @@
       results: {},
       locks: { gs1: false, gs2: false, gs3: false, r32: false, r16: false, qf: false, sf: false, final: false },
       koFixtures: [],
+      deadlines: { gs1: "", gs2: "", gs3: "" },
     });
 
     const flag = t => FLAGS[t] || "🏳️";
@@ -692,6 +693,58 @@ body { background: ${T.bg}; margin: 0; }
         );
       }
 
+      function Countdown({ deadline }) {
+        const [timeLeft, setTimeLeft] = useState("");
+        const [urgent, setUrgent] = useState(false);
+        const [expired, setExpired] = useState(false);
+
+        useEffect(() => {
+          if (!deadline) return;
+          function tick() {
+            const diff = new Date(deadline).getTime() - Date.now();
+            if (diff <= 0) { setExpired(true); setTimeLeft("Deadline passed"); return; }
+            setExpired(false);
+            const d = Math.floor(diff / 86400000);
+            const h = Math.floor((diff % 86400000) / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            setUrgent(diff < 3600000);
+            if (d > 0) setTimeLeft(`${d}d ${h}h ${m}m`);
+            else if (h > 0) setTimeLeft(`${h}h ${m}m ${s}s`);
+            else setTimeLeft(`${m}m ${s}s`);
+          }
+          tick();
+          const t = setInterval(tick, 1000);
+          return () => clearInterval(t);
+        }, [deadline]);
+
+        if (!deadline) return null;
+
+        return (
+          <div style={{
+            borderRadius: 14, padding: "12px 16px", marginBottom: 14, marginTop: 10,
+            background: expired ? T.redLight : urgent ? "rgba(232,150,10,.12)" : T.blueLight,
+            border: `1px solid ${expired ? T.red + "40" : urgent ? T.gold + "40" : T.blue + "30"}`,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <div>
+              <div className="of" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: expired ? T.red : urgent ? T.gold : T.blue, textTransform: "uppercase" }}>
+                {expired ? "🔒 Predictions Closed" : urgent ? "⚡ Closing Soon" : "⏱ Deadline"}
+              </div>
+              <div className="of" style={{ fontSize: 13, fontWeight: 800, color: expired ? T.red : urgent ? T.gold : T.blue, marginTop: 2 }}>
+                {expired ? "This matchday is locked" : timeLeft}
+              </div>
+            </div>
+            {!expired && (
+              <div className="of" style={{ fontSize: 10, color: T.muted, textAlign: "right" }}>
+                {new Date(deadline).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}<br />
+                {new Date(deadline).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+              </div>
+            )}
+          </div>
+        );
+      }
+
       function PredictView() {
         if (!player) {
           return (
@@ -706,9 +759,11 @@ body { background: ${T.bg}; margin: 0; }
 
         const myScores = scores[player.id] || { total: 0 };
         const gs = isGS(activeRound);
+        const deadline = state.deadlines?.[activeRound] || "";
 
         return (
           <div>
+            {/* Score card */}
             <div style={{ borderRadius: 18, marginBottom: 16, overflow: "hidden", position: "relative", background: "linear-gradient(135deg,#0c1a3a,#0f2a5c)", border: "1px solid rgba(59,110,248,.2)", padding: "16px 18px" }}>
               <div style={{ position: "absolute", right: -10, top: -10, fontSize: 80, opacity: 0.04 }}>⚽</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -731,27 +786,28 @@ body { background: ${T.bg}; margin: 0; }
 
             {gs ? (
               <>
+                <Countdown deadline={deadline} />
                 {isLocked(activeRound) && (
                   <div className="of" style={{ background: T.goldLight, border: `1px solid ${T.gold}40`, borderRadius: 12, padding: "10px 14px", margin: "12px 0", fontSize: 13, color: T.gold, fontWeight: 700, textAlign: "center" }}>
                     🔒 {ROUNDS.find(r => r.id === activeRound)?.label} is locked
                   </div>
                 )}
-                <GroupTabs active={activeGroup} onSelect={setActiveGroup} />
-                <div style={{ height: 12 }} />
-                <div
-                  onTouchStart={e => setTouchStart(e.touches[0].clientX)}
-                  onTouchEnd={e => {
-                    if (touchStart === null) return;
-                    const dx = e.changedTouches[0].clientX - touchStart;
-                    if (Math.abs(dx) > 50) swipeGroup(dx < 0 ? "left" : "right");
-                    setTouchStart(null);
-                  }}
-                >
-                  {GS.filter(f => f.g === activeGroup && `gs${f.md}` === activeRound).map(f => (
-                    <FixtureCard key={f.id} fx={{ ...f, round: `gs${f.md}` }} />
-                  ))}
-                </div>
-                <div className="of" style={{ textAlign: "center", fontSize: 11, color: T.muted, marginTop: 8, opacity: 0.5 }}>← swipe to change group →</div>
+                <div style={{ height: 4 }} />
+                {GROUPS.map(g => {
+                  const groupFixtures = GS.filter(f => f.g === g && `gs${f.md}` === activeRound);
+                  if (groupFixtures.length === 0) return null;
+                  return (
+                    <div key={g}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "14px 0 8px" }}>
+                        <div className="of" style={{ fontWeight: 800, fontSize: 11, letterSpacing: 2, color: T.muted, textTransform: "uppercase" }}>Group {g}</div>
+                        <div style={{ flex: 1, height: 1, background: T.border }} />
+                      </div>
+                      {groupFixtures.map(f => (
+                        <FixtureCard key={f.id} fx={{ ...f, round: `gs${f.md}` }} />
+                      ))}
+                    </div>
+                  );
+                })}
               </>
             ) : (
               <>
@@ -861,12 +917,37 @@ body { background: ${T.bg}; margin: 0; }
               <div>
                 <div className="of" style={{ color: T.muted, fontSize: 13, marginBottom: 14, textAlign: "center" }}>Lock rounds before they start to freeze predictions</div>
                 {ROUNDS.map(r => (
-                  <div key={r.id} className="fx-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                    <div>
-                      <div className="of" style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{r.label}</div>
-                      <div className="of" style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{POINTS[r.id]}pt · {state.locks[r.id] ? "🔒 Locked" : "🟢 Open"}</div>
+                  <div key={r.id} className="fx-card" style={{ marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isGS(r.id) ? 10 : 0 }}>
+                      <div>
+                        <div className="of" style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{r.label}</div>
+                        <div className="of" style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{POINTS[r.id]}pt · {state.locks[r.id] ? "🔒 Locked" : "🟢 Open"}</div>
+                      </div>
+                      <button className="btn-base of" onClick={() => toggleLock(r.id)} style={{ borderRadius: 10, padding: "9px 16px", fontSize: 12, background: state.locks[r.id] ? T.redLight : T.greenLight, color: state.locks[r.id] ? T.red : T.green, border: state.locks[r.id] ? `1px solid ${T.red}40` : `1px solid ${T.green}40` }}>{state.locks[r.id] ? "🔓 Unlock" : "🔒 Lock"}</button>
                     </div>
-                    <button className="btn-base of" onClick={() => toggleLock(r.id)} style={{ borderRadius: 10, padding: "9px 16px", fontSize: 12, background: state.locks[r.id] ? T.redLight : T.greenLight, color: state.locks[r.id] ? T.red : T.green, border: state.locks[r.id] ? `1px solid ${T.red}40` : `1px solid ${T.green}40` }}>{state.locks[r.id] ? "🔓 Unlock" : "🔒 Lock"}</button>
+                    {isGS(r.id) && (
+                      <div>
+                        <div className="of" style={{ fontSize: 11, color: T.muted, marginBottom: 5, fontWeight: 600 }}>⏱ Prediction deadline (your local time)</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input
+                            type="datetime-local"
+                            className="inp"
+                            style={{ flex: 1, fontSize: 13, padding: "8px 10px" }}
+                            value={state.deadlines?.[r.id] || ""}
+                            onChange={async e => {
+                              const val = e.target.value || "";
+                              await saveState({ ...state, deadlines: { ...(state.deadlines || {}), [r.id]: val } });
+                              showToast("Deadline saved ✓");
+                            }}
+                          />
+                        </div>
+                        {state.deadlines?.[r.id] && (
+                          <div className="of" style={{ fontSize: 11, color: T.blue, marginTop: 5 }}>
+                            Set to {state.deadlines[r.id].replace("T", " at ").slice(0, 16)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
