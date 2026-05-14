@@ -14,7 +14,7 @@
     body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
       background-image:url("pitch.jpg");
       background-size:cover;background-position:center;
-      opacity:0.06;
+      opacity:0.14;
     }
     body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
       background:linear-gradient(180deg,rgba(240,244,255,0.0) 0%,rgba(240,244,255,0.5) 100%);
@@ -376,10 +376,11 @@ function App(){
       <div>
         {confetti.length>0&&(<div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:200}}>{confetti.map(p=><div key={p.id} style={{position:"absolute",left:`${p.x}%`,top:"40%",width:p.r*2,height:p.r*2,borderRadius:p.r>5?2:p.r,background:p.color,animation:`fall${p.id%3} 1.5s ease-out forwards`}}/>)}</div>)}
         <div style={{position:"relative",borderRadius:24,overflow:"hidden",marginBottom:20,padding:"32px 24px 28px",textAlign:"center",background:"linear-gradient(160deg,#1a3a8f 0%,#2952d4 50%,#1a3a8f 100%)",border:"none",boxShadow:"0 8px 40px rgba(41,82,212,.3)"}}>
-          <div style={{position:"absolute",inset:0,backgroundImage:"url('stadium.jpg')",backgroundSize:"cover",backgroundPosition:"center",opacity:.2,pointerEvents:"none"}}/>
-          <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,rgba(26,58,143,.85),rgba(41,82,212,.72) 50%,rgba(26,58,143,.85))",pointerEvents:"none"}}/>
-          <div style={{position:"relative"}}>
-            <img src="logo.png" alt="FIFA World Cup 2026" style={{height:100,width:"auto",objectFit:"contain",marginBottom:12,filter:"brightness(0) invert(1)",opacity:.95}}/>
+          <div style={{position:"absolute",inset:0,backgroundImage:"url('stadium.jpg')",backgroundSize:"cover",backgroundPosition:"center",opacity:.35,pointerEvents:"none"}}/>
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,rgba(26,58,143,.82),rgba(41,82,212,.72) 50%,rgba(26,58,143,.82))",pointerEvents:"none"}}/>
+          <div style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center"}}>
+            <img src="logo.png" alt="FIFA World Cup 2026" style={{height:90,width:90,objectFit:"contain",mixBlendMode:"screen",marginBottom:10}}/>
+            <div className="of" style={{color:"rgba(255,255,255,.65)",fontWeight:700,fontSize:10,letterSpacing:7,textTransform:"uppercase",marginBottom:4}}>Predictor</div>
 
             {diff<=0?(
               <div className="of" style={{marginTop:16,display:"inline-flex",alignItems:"center",gap:7,background:"rgba(52,211,153,.1)",border:"1px solid rgba(52,211,153,.25)",borderRadius:100,padding:"7px 18px",color:T.grn,fontSize:12,fontWeight:700}}>
@@ -513,7 +514,7 @@ function App(){
     return(
       <div>
         <div style={{borderRadius:20,marginBottom:16,overflow:"hidden",position:"relative",background:"linear-gradient(135deg,#1a3a8f,#2952d4)",border:"none",padding:"20px 20px 18px",animation:"fadeUp .4s ease both",boxShadow:"0 8px 32px rgba(41,82,212,.25)"}}>
-          <div style={{position:"absolute",inset:0,backgroundImage:"url('crowd.jpg')",backgroundSize:"cover",backgroundPosition:"center top",opacity:.15,pointerEvents:"none"}}/>
+          <div style={{position:"absolute",inset:0,backgroundImage:"url('crowd.jpg')",backgroundSize:"cover",backgroundPosition:"center top",opacity:.28,pointerEvents:"none"}}/>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(26,58,143,.88),rgba(41,82,212,.78))",pointerEvents:"none"}}/>
           <div style={{position:"absolute",right:-8,top:-8,fontSize:90,opacity:.03,userSelect:"none"}}>⚽</div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",position:"relative"}}>
@@ -591,13 +592,13 @@ function App(){
         {/* Fans banner */}
         <div style={{position:"relative",borderRadius:20,overflow:"hidden",marginBottom:16,height:90}}>
           <div style={{position:"absolute",inset:0,backgroundImage:"url('fans.jpg')",backgroundSize:"cover",backgroundPosition:"center 30%"}}/>
-          <div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(26,58,143,.75),rgba(3,105,161,.65))"}}/>
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(26,58,143,.7),rgba(3,105,161,.6))"}}/>
           <div style={{position:"relative",padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:"100%"}}>
             <div>
               <div className="bc" style={{fontWeight:900,fontSize:22,color:"#fff",letterSpacing:1,textTransform:"uppercase"}}>Predictions</div>
               <div className="of" style={{color:"rgba(255,255,255,.7)",fontSize:11,marginTop:2}}>See what everyone predicted</div>
             </div>
-            <img src="logo.png" alt="" style={{height:52,opacity:.85,filter:"brightness(0) invert(1)"}}/>
+            <img src="logo.png" alt="" style={{height:52,mixBlendMode:"screen"}}/>
           </div>
         </div>
         <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,marginBottom:16}}>
@@ -660,7 +661,7 @@ function App(){
     return(
       <div>
         <div style={{borderRadius:20,padding:"16px 18px",marginBottom:16,background:"linear-gradient(135deg,#0369a1,#0284c7)",border:"none",boxShadow:"0 6px 24px rgba(3,105,161,.25)",position:"relative",overflow:"hidden"}}>
-          <div style={{position:"absolute",inset:0,backgroundImage:"url('action.jpg')",backgroundSize:"cover",backgroundPosition:"center",opacity:.12,pointerEvents:"none"}}/>
+          <div style={{position:"absolute",inset:0,backgroundImage:"url('action.jpg')",backgroundSize:"cover",backgroundPosition:"center",opacity:.22,pointerEvents:"none"}}/>
           <div className="bc" style={{color:T.tx,fontWeight:900,fontSize:22,letterSpacing:1}}>⚙️ Admin Panel</div>
           <div className="of" style={{color:"rgba(56,189,248,.7)",fontSize:12,marginTop:2}}>Shakil's control room</div>
         </div>
@@ -787,11 +788,13 @@ function App(){
       <div style={{minHeight:"calc(100vh - 64px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 20px",position:"relative"}}>
         {/* Trophy background */}
         <div style={{position:"fixed",inset:0,zIndex:-1,pointerEvents:"none"}}>
-          <div style={{position:"absolute",inset:0,backgroundImage:"url('trophy.jpg')",backgroundSize:"cover",backgroundPosition:"center top",opacity:.08}}/>
+          <div style={{position:"absolute",inset:0,backgroundImage:"url('trophy.jpg')",backgroundSize:"cover",backgroundPosition:"center top",opacity:.18}}/>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(240,244,255,.6) 0%,rgba(240,244,255,.95) 100%)"}}/>
         </div>
         <div style={{textAlign:"center",marginBottom:36,animation:"fadeUp .6s ease both"}}>
-          <img src="logo.png" alt="FIFA World Cup 2026" style={{height:110,width:"auto",objectFit:"contain",marginBottom:16}}/>
+          <div style={{display:"inline-block",background:"#0f1c40",borderRadius:16,padding:"10px 16px",marginBottom:16}}>
+            <img src="logo.png" alt="FIFA World Cup 2026" style={{height:80,width:"auto",objectFit:"contain",display:"block"}}/>
+          </div>
           <div className="of" style={{color:T.mu,fontSize:13,fontWeight:600}}>Who are you?</div>
         </div>
         <div style={{width:"100%",maxWidth:340,animation:"fadeUp .6s ease .1s both"}}>
@@ -853,7 +856,7 @@ function App(){
     <>
       <style>{CSS}</style>
       <div style={{background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,animation:"reveal 1s ease both"}}>
-        <img src="logo.png" alt="FIFA World Cup 2026" style={{height:120,width:"auto",objectFit:"contain"}}/>
+        <img src="logo.png" alt="FIFA World Cup 2026" style={{height:110,width:"auto",objectFit:"contain",mixBlendMode:"screen",background:"#0f1c40",borderRadius:12,padding:8}}/>
         <div className="of" style={{color:T.mu,fontSize:11,letterSpacing:4,textAlign:"center",textTransform:"uppercase"}}>Loading</div>
       </div>
     </>
@@ -866,7 +869,9 @@ function App(){
       <div style={{background:T.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:90}}>
         <div style={{background:"rgba(255,255,255,.96)",padding:"10px 18px",position:"sticky",top:0,zIndex:50,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(15,28,64,.09)",boxShadow:"0 2px 16px rgba(15,28,64,.06)"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <img src="logo.png" alt="FIFA World Cup 2026" style={{height:44,width:"auto",objectFit:"contain"}}/>
+            <div style={{background:"#0f1c40",borderRadius:10,padding:"4px 10px",display:"inline-flex",alignItems:"center"}}>
+              <img src="logo.png" alt="FIFA World Cup 2026" style={{height:32,width:"auto",objectFit:"contain"}}/>
+            </div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               {saving&&<span className="of" style={{color:T.mu,fontSize:11}}>saving…</span>}
               {(player||isAdmin)&&(
