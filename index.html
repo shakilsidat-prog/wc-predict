@@ -190,6 +190,32 @@ function App(){
     }catch(e){toast2("⚠️ "+e.message);}
     setSaving(false);
   }
+  // Fetch the freshest bin, apply ONE change to it, then write back.
+  // This stops a save based on a stale snapshot from wiping changes
+  // other people made after this device last loaded.
+  // mutate(fresh) must return the next state object.
+  // optimistic(state) is an optional instant local preview before the network round-trip.
+  async function mergeSave(mutate,optimistic){
+    if(!state)return;
+    if(optimistic)setState(optimistic(state));
+    setSaving(true);
+    if(JSONBIN_ID==="PLACEHOLDER"){setState(mutate(state));setSaving(false);return;}
+    try{
+      // 1. re-read the live bin so we have everyone's latest
+      const r=await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}/latest`,{headers:{"X-Master-Key":JSONBIN_KEY}});
+      const d=await r.json();
+      if(d.message){toast2("⚠️ Save error: "+d.message);setSaving(false);return;}
+      const fresh=d.record||state;
+      // 2. apply just this one change on top of the fresh copy
+      const next=mutate(fresh);
+      // 3. write the merged result back
+      const w=await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}`,{method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":JSONBIN_KEY},body:JSON.stringify(next)});
+      const wd=await w.json();
+      if(wd.message){toast2("⚠️ Save error: "+wd.message);setSaving(false);return;}
+      setState(next); // local state now matches the bin exactly
+    }catch(e){toast2("⚠️ "+e.message);}
+    setSaving(false);
+  }
   function toast2(msg){setToast(msg);setTimeout(()=>setToast(""),msg.includes("⚠️")?5000:2000);}
 
   function handleLogin(){
@@ -202,37 +228,60 @@ function App(){
   async function savePred(fxId,val){
     if(!player||!state)return;
     navigator.vibrate&&navigator.vibrate(val?50:20);
-    const k=`${player.id}_${fxId}`;const next={...state.predictions};
-    if(val===null)delete next[k];else next[k]=val;
-    await save({...state,predictions:next});toast2(val?"Saved ✓":"Cleared");
+    const k=`${player.id}_${fxId}`;
+    await mergeSave(
+      fresh=>{const next={...fresh.predictions};if(val===null)delete next[k];else next[k]=val;return {...fresh,predictions:next};},
+      cur=>{const next={...cur.predictions};if(val===null)delete next[k];else next[k]=val;return {...cur,predictions:next};}
+    );
+    toast2(val?"Saved ✓":"Cleared");
   }
   async function saveRes(fxId,r,hs,as_){
     if(!state)return;
-    const next={...state.results};
-    if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_};
-    await save({...state,results:next});toast2(r?"Result saved ✓":"Cleared");
+    await mergeSave(
+      fresh=>{const next={...fresh.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_};return {...fresh,results:next};},
+      cur=>{const next={...cur.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_};return {...cur,results:next};}
+    );
+    toast2(r?"Result saved ✓":"Cleared");
   }
   async function toggleLock(rid){
     if(!state)return;
     const was=state.locks[rid];
-    await save({...state,locks:{...state.locks,[rid]:!was}});
+    await mergeSave(
+      fresh=>({...fresh,locks:{...fresh.locks,[rid]:!fresh.locks[rid]}}),
+      cur=>({...cur,locks:{...cur.locks,[rid]:!cur.locks[rid]}})
+    );
     toast2(was?"Unlocked 🔓":"Locked 🔒");
   }
   async function addKO(){
     if(!state||!koHome.trim()||!koAway.trim())return;
-    const id=`${koRound}_${Date.now()}`;
-    await save({...state,koFixtures:[...state.koFixtures,{id,round:koRound,h:koHome.trim(),a:koAway.trim()}]});
+    const fx={id:`${koRound}_${Date.now()}`,round:koRound,h:koHome.trim(),a:koAway.trim()};
+    await mergeSave(
+      fresh=>({...fresh,koFixtures:[...fresh.koFixtures,fx]}),
+      cur=>({...cur,koFixtures:[...cur.koFixtures,fx]})
+    );
     setKoHome("");setKoAway("");toast2("Fixture added ✓");
   }
-  async function rmKO(id){if(!state)return;await save({...state,koFixtures:state.koFixtures.filter(f=>f.id!==id)});}
+  async function rmKO(id){
+    if(!state)return;
+    await mergeSave(
+      fresh=>({...fresh,koFixtures:fresh.koFixtures.filter(f=>f.id!==id)}),
+      cur=>({...cur,koFixtures:cur.koFixtures.filter(f=>f.id!==id)})
+    );
+  }
   async function savePin(pid,pin){
     if(!state||pin.length<4)return;
-    await save({...state,pins:{...state.pins,[pid]:pin}});
+    await mergeSave(
+      fresh=>({...fresh,pins:{...fresh.pins,[pid]:pin}}),
+      cur=>({...cur,pins:{...cur.pins,[pid]:pin}})
+    );
     setEditPin(null);setNewPin("");toast2("PIN updated ✓");
   }
   async function saveFinalSc(h,a){
     if(!player||!state)return;
-    await save({...state,finalScores:{...state.finalScores,[player.id]:{home:h,away:a}}});
+    await mergeSave(
+      fresh=>({...fresh,finalScores:{...fresh.finalScores,[player.id]:{home:h,away:a}}}),
+      cur=>({...cur,finalScores:{...cur.finalScores,[player.id]:{home:h,away:a}}})
+    );
     toast2("Score saved ✓");
   }
   function boom(){
@@ -718,7 +767,7 @@ function App(){
                 {isGS(r.id)&&(
                   <div>
                     <div className="of" style={{fontSize:11,color:T.mu,marginBottom:6,fontWeight:600}}>⏱ Prediction deadline (your local time)</div>
-                    <input type="datetime-local" className="inp" style={{fontSize:13,padding:"8px 10px"}} value={state.deadlines?.[r.id]||""} onChange={async e=>{const val=e.target.value||"";await save({...state,deadlines:{...(state.deadlines||{}),[r.id]:val}});toast2("Deadline saved ✓");}}/>
+                    <input type="datetime-local" className="inp" style={{fontSize:13,padding:"8px 10px"}} value={state.deadlines?.[r.id]||""} onChange={async e=>{const val=e.target.value||"";await mergeSave(fresh=>({...fresh,deadlines:{...(fresh.deadlines||{}),[r.id]:val}}),cur=>({...cur,deadlines:{...(cur.deadlines||{}),[r.id]:val}}));toast2("Deadline saved ✓");}}/>
                     {state.deadlines?.[r.id]&&<div className="of" style={{fontSize:11,color:T.blue,marginTop:5}}>Set to {state.deadlines[r.id].replace("T"," at ").slice(0,16)}</div>}
                   </div>
                 )}
@@ -768,7 +817,7 @@ function App(){
               {editPin==="__ap__"?(
                 <div style={{display:"flex",gap:8}}>
                   <input value={newPin} onChange={e=>setNewPin(e.target.value)} placeholder="New password" className="inp" style={{flex:1}}/>
-                  <button className="btn of" onClick={async()=>{await save({...state,adminPass:newPin});setEditPin(null);setNewPin("");toast2("Updated ✓");}} style={{borderRadius:10,padding:"0 14px",background:T.cy,color:"#fff",border:"none",fontSize:12,fontWeight:800}}>Save</button>
+                  <button className="btn of" onClick={async()=>{await mergeSave(fresh=>({...fresh,adminPass:newPin}),cur=>({...cur,adminPass:newPin}));setEditPin(null);setNewPin("");toast2("Updated ✓");}} style={{borderRadius:10,padding:"0 14px",background:T.cy,color:"#fff",border:"none",fontSize:12,fontWeight:800}}>Save</button>
                   <button className="btn of" onClick={()=>{setEditPin(null);setNewPin("");}} style={{borderRadius:10,padding:"0 12px",background:T.sf2,color:T.mu,border:`1px solid ${T.bd}`,fontSize:16}}>✕</button>
                 </div>
               ):(
