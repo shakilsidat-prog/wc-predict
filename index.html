@@ -716,7 +716,7 @@ function App(){
           <div className="of" style={{color:"rgba(56,189,248,.7)",fontSize:12,marginTop:2}}>Shakil's control room</div>
         </div>
         <div style={{display:"flex",gap:5,marginBottom:16,background:"rgba(255,255,255,.04)",borderRadius:14,padding:5,border:`1px solid ${T.bd}`}}>
-          {["results","locks","fixtures","pins"].map(t=>(
+          {["results","progress","locks","fixtures","pins"].map(t=>(
             <button key={t} className="btn of" onClick={()=>setAdminTab(t)} style={{flex:1,background:adminTab===t?T.cy:"transparent",color:adminTab===t?"#07090f":T.mu,border:"none",borderRadius:10,padding:"8px 4px",fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,boxShadow:adminTab===t?`0 0 16px ${T.cyGlow}`:"none"}}>{t}</button>
           ))}
         </div>
@@ -752,6 +752,58 @@ function App(){
             })}
           </div>
         )}
+        {adminTab==="progress"&&(()=>{
+          // Fixtures for the WHOLE selected round (all groups for GS rounds).
+          const roundFx=isGS(activeRound)
+            ? GS.filter(f=>`gs${f.md}`===activeRound)
+            : state.koFixtures.filter(f=>f.round===activeRound);
+          const total=roundFx.length;
+          // For each player: how many of this round's fixtures they've predicted.
+          // We only check whether the prediction KEY exists — never the pick itself.
+          const rows=PLAYERS.map(p=>{
+            const done=total===0?0:roundFx.filter(f=>state.predictions[`${p.id}_${f.id}`]!==undefined).length;
+            return {p,done,complete:total>0&&done===total};
+          }).sort((a,b)=>a.done-b.done); // least-done first, so laggards are at the top
+          const allDone=total>0&&rows.every(r=>r.complete);
+          return(
+            <div>
+              <RTabs active={activeRound} onSelect={setActiveRound} col={T.cy}/>
+              <div style={{height:12}}/>
+              {total===0?(
+                <div className="of" style={{textAlign:"center",color:T.mu,padding:24,fontSize:13}}>No fixtures in this round yet</div>
+              ):(
+                <>
+                  <div className="of" style={{textAlign:"center",color:T.mu,fontSize:12,marginBottom:12}}>
+                    {ROUNDS.find(r=>r.id===activeRound)?.label} · {total} {total===1?"fixture":"fixtures"} · who still needs to predict
+                  </div>
+                  {allDone&&(
+                    <div className="of" style={{background:T.grnDim,border:"1px solid rgba(52,211,153,.3)",borderRadius:12,padding:"10px 14px",marginBottom:12,fontSize:13,fontWeight:800,color:T.grn,textAlign:"center"}}>✅ Everyone's in for this round</div>
+                  )}
+                  {rows.map(({p,done,complete})=>{
+                    const pct=Math.round(done/total*100);
+                    return(
+                      <div key={p.id} className="fx" style={{marginBottom:8,padding:"12px 14px"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <div style={{width:30,height:30,borderRadius:"50%",background:complete?T.grn:T.cy,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900,color:"#07090f",flexShrink:0}}>{p.name.charAt(0)}</div>
+                            <span className="of" style={{fontSize:14,fontWeight:700,color:T.tx}}>{p.name}</span>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <span className="of" style={{fontSize:13,fontWeight:800,color:complete?T.grn:done===0?T.red:T.mu}}>{done}/{total}</span>
+                            <span style={{fontSize:15}}>{complete?"✅":done===0?"⛔":"⏳"}</span>
+                          </div>
+                        </div>
+                        <div style={{height:4,background:"rgba(255,255,255,.06)",borderRadius:2,marginTop:9,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${pct}%`,borderRadius:2,background:complete?T.grn:T.cy,transition:"width .5s ease"}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          );
+        })()}
         {adminTab==="locks"&&(
           <div>
             <div className="of" style={{color:T.mu,fontSize:13,marginBottom:14,textAlign:"center"}}>Lock rounds before kickoff to freeze predictions</div>
