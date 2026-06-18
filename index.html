@@ -72,7 +72,7 @@ const defaultState=()=>({
   pins:Object.fromEntries(PLAYERS.map(p=>[p.id,"1111"])),
   adminPass:"WC2026!",predictions:{},finalScores:{},results:{},
   locks:{gs1:false,gs2:false,gs3:false,r32:false,r16:false,qf:false,sf:false,final:false},
-  koFixtures:[],deadlines:{gs1:"",gs2:"",gs3:""},
+  bracketSlots:{},deadlines:{gs1:"",gs2:"",gs3:""},
 });
 const T={
   bg:"#f0f4ff",sf:"#ffffff",sf2:"rgba(255,255,255,.85)",
@@ -113,9 +113,61 @@ select.inp option{background:#fff;color:#0f1c40}
 `;
 const flag=t=>FLAGS[t]||"🏳️";
 const isGS=r=>r==="gs1"||r==="gs2"||r==="gs3";
+const ALL_TEAMS=Object.keys(FLAGS).sort();
+
+// Official FIFA WC2026 R32 bracket — match number → {round, label, nextMatch, nextSide}
+// nextMatch = which match slot the winner feeds into; nextSide = "h" or "a"
+const BRACKET=[
+  {id:"m73",round:"r32",label:"M73 · 2nd Group A vs 2nd Group B",         nextMatch:"m90",nextSide:"h"},
+  {id:"m74",round:"r32",label:"M74 · 1st Group E vs 3rd (A/B/C/D/F)",     nextMatch:"m89",nextSide:"h"},
+  {id:"m75",round:"r32",label:"M75 · 1st Group F vs 2nd Group C",          nextMatch:"m90",nextSide:"a"},
+  {id:"m76",round:"r32",label:"M76 · 1st Group C vs 2nd Group F",          nextMatch:"m91",nextSide:"h"},
+  {id:"m77",round:"r32",label:"M77 · 1st Group I vs 3rd (C/D/F/G/H)",      nextMatch:"m89",nextSide:"a"},
+  {id:"m78",round:"r32",label:"M78 · 2nd Group E vs 2nd Group I",           nextMatch:"m91",nextSide:"a"},
+  {id:"m79",round:"r32",label:"M79 · 1st Group A vs 3rd (C/E/F/H/I)",      nextMatch:"m92",nextSide:"h"},
+  {id:"m80",round:"r32",label:"M80 · 1st Group L vs 3rd (E/H/I/J/K)",      nextMatch:"m92",nextSide:"a"},
+  {id:"m81",round:"r32",label:"M81 · 1st Group D vs 3rd (B/E/F/I/J)",      nextMatch:"m94",nextSide:"h"},
+  {id:"m82",round:"r32",label:"M82 · 1st Group G vs 3rd (A/E/H/I/J)",      nextMatch:"m94",nextSide:"a"},
+  {id:"m83",round:"r32",label:"M83 · 2nd Group K vs 2nd Group L",           nextMatch:"m93",nextSide:"h"},
+  {id:"m84",round:"r32",label:"M84 · 1st Group H vs 2nd Group J",           nextMatch:"m93",nextSide:"a"},
+  {id:"m85",round:"r32",label:"M85 · 1st Group B vs 3rd (E/F/G/I/J)",      nextMatch:"m96",nextSide:"h"},
+  {id:"m86",round:"r32",label:"M86 · 1st Group J vs 2nd Group H",           nextMatch:"m95",nextSide:"h"},
+  {id:"m87",round:"r32",label:"M87 · 1st Group K vs 3rd (D/E/I/J/L)",      nextMatch:"m96",nextSide:"a"},
+  {id:"m88",round:"r32",label:"M88 · 2nd Group D vs 2nd Group G",           nextMatch:"m95",nextSide:"a"},
+  {id:"m89",round:"r16",label:"M89 · W74 vs W77",nextMatch:"m97",nextSide:"h"},
+  {id:"m90",round:"r16",label:"M90 · W73 vs W75",nextMatch:"m97",nextSide:"a"},
+  {id:"m91",round:"r16",label:"M91 · W76 vs W78",nextMatch:"m99",nextSide:"h"},
+  {id:"m92",round:"r16",label:"M92 · W79 vs W80",nextMatch:"m99",nextSide:"a"},
+  {id:"m93",round:"r16",label:"M93 · W83 vs W84",nextMatch:"m98",nextSide:"h"},
+  {id:"m94",round:"r16",label:"M94 · W81 vs W82",nextMatch:"m98",nextSide:"a"},
+  {id:"m95",round:"r16",label:"M95 · W86 vs W88",nextMatch:"m100",nextSide:"h"},
+  {id:"m96",round:"r16",label:"M96 · W85 vs W87",nextMatch:"m100",nextSide:"a"},
+  {id:"m97",round:"qf", label:"M97 · W89 vs W90",nextMatch:"m101",nextSide:"h"},
+  {id:"m98",round:"qf", label:"M98 · W93 vs W94",nextMatch:"m101",nextSide:"a"},
+  {id:"m99",round:"qf", label:"M99 · W91 vs W92",nextMatch:"m102",nextSide:"h"},
+  {id:"m100",round:"qf",label:"M100 · W95 vs W96",nextMatch:"m102",nextSide:"a"},
+  {id:"m101",round:"sf", label:"M101 · W97 vs W98", nextMatch:"m104",nextSide:"h"},
+  {id:"m102",round:"sf", label:"M102 · W99 vs W100",nextMatch:"m104",nextSide:"a"},
+  {id:"m104",round:"final",label:"M104 · Final",nextMatch:null,nextSide:null},
+];
+
+// Convert bracketSlots state into array of fixture objects (same shape as old koFixtures)
+function getBracketFx(state){
+  const slots=state.bracketSlots||{};
+  return BRACKET
+    .filter(b=>slots[b.id]&&(slots[b.id].h||slots[b.id].a))
+    .map(b=>({id:b.id,round:b.round,h:slots[b.id].h||"TBD",a:slots[b.id].a||"TBD"}));
+}
+// Only fixtures where BOTH teams are known — these are predictable
+function getFullBracketFx(state){
+  const slots=state.bracketSlots||{};
+  return BRACKET
+    .filter(b=>slots[b.id]&&slots[b.id].h&&slots[b.id].a)
+    .map(b=>({id:b.id,round:b.round,h:slots[b.id].h,a:slots[b.id].a}));
+}
 
 function calcScores(state){
-  const all=[...GS.map(f=>({...f,round:`gs${f.md}`})),...state.koFixtures];
+  const all=[...GS.map(f=>({...f,round:`gs${f.md}`})),...getFullBracketFx(state)];
   const sc={};
   PLAYERS.forEach(p=>{sc[p.id]={total:0,gs:0,gs1:0,gs2:0,gs3:0,r32:0,r16:0,qf:0,sf:0,final:0};});
   all.forEach(f=>{
@@ -147,9 +199,7 @@ function App(){
   const [activeRound,setActiveRound]=useState("gs1");
   const [toast,setToast]=useState("");
   const [adminTab,setAdminTab]=useState("results");
-  const [koHome,setKoHome]=useState("");
-  const [koAway,setKoAway]=useState("");
-  const [koRound,setKoRound]=useState("r32");
+
   const [draft,setDraft]=useState({});
   const [editPin,setEditPin]=useState(null);
   const [newPin,setNewPin]=useState("");
@@ -242,6 +292,8 @@ function App(){
       cur=>{const next={...cur.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_};return {...cur,results:next};}
     );
     toast2(r?"Result saved ✓":"Cleared");
+    // Auto-cascade winner into next bracket slot
+    if(r&&BRACKET.some(b=>b.id===fxId))await cascadeWinner(fxId,r);
   }
   async function toggleLock(rid){
     if(!state)return;
@@ -252,20 +304,45 @@ function App(){
     );
     toast2(was?"Unlocked 🔓":"Locked 🔒");
   }
-  async function addKO(){
-    if(!state||!koHome.trim()||!koAway.trim())return;
-    const fx={id:`${koRound}_${Date.now()}`,round:koRound,h:koHome.trim(),a:koAway.trim()};
-    await mergeSave(
-      fresh=>({...fresh,koFixtures:[...fresh.koFixtures,fx]}),
-      cur=>({...cur,koFixtures:[...cur.koFixtures,fx]})
-    );
-    setKoHome("");setKoAway("");toast2("Fixture added ✓");
-  }
-  async function rmKO(id){
+  async function saveBracketSlot(matchId, side, team){
     if(!state)return;
     await mergeSave(
-      fresh=>({...fresh,koFixtures:fresh.koFixtures.filter(f=>f.id!==id)}),
-      cur=>({...cur,koFixtures:cur.koFixtures.filter(f=>f.id!==id)})
+      fresh=>{
+        const slots={...fresh.bracketSlots};
+        slots[matchId]={...(slots[matchId]||{}), [side]:team};
+        return {...fresh,bracketSlots:slots};
+      },
+      cur=>{
+        const slots={...cur.bracketSlots};
+        slots[matchId]={...(slots[matchId]||{}), [side]:team};
+        return {...cur,bracketSlots:slots};
+      }
+    );
+    toast2("Saved ✓");
+  }
+  // When a result is saved for a bracket match, cascade the winner into the next slot
+  async function cascadeWinner(matchId, resultR){
+    if(!state)return;
+    const bm=BRACKET.find(b=>b.id===matchId);
+    if(!bm||!bm.nextMatch)return;
+    await mergeSave(
+      fresh=>{
+        // Read slot from fresh bin — avoids stale closure bug
+        const slot=(fresh.bracketSlots||{})[matchId]||{};
+        const winner=resultR==="H"?slot.h:resultR==="A"?slot.a:null;
+        if(!winner||winner==="TBD")return fresh; // nothing to cascade
+        const s={...fresh.bracketSlots};
+        s[bm.nextMatch]={...(s[bm.nextMatch]||{}),[bm.nextSide]:winner};
+        return {...fresh,bracketSlots:s};
+      },
+      cur=>{
+        const slot=(cur.bracketSlots||{})[matchId]||{};
+        const winner=resultR==="H"?slot.h:resultR==="A"?slot.a:null;
+        if(!winner||winner==="TBD")return cur;
+        const s={...cur.bracketSlots};
+        s[bm.nextMatch]={...(s[bm.nextMatch]||{}),[bm.nextSide]:winner};
+        return {...cur,bracketSlots:s};
+      }
     );
   }
   async function savePin(pid,pin){
@@ -296,7 +373,7 @@ function App(){
   const lockedRounds=ROUNDS.filter(r=>{
     if(!state?.locks[r.id])return false;
     if(isGS(r.id))return true;
-    return state?.koFixtures?.some(f=>f.round===r.id);
+    return getBracketFx(state).some(f=>f.round===r.id);
   });
 
   function consensus(fxId){
@@ -339,7 +416,7 @@ function App(){
 
   function RTabs({active,onSelect,col}){
     const c=col||T.blue;
-    const rs=ROUNDS.filter(r=>isGS(r.id)||state.koFixtures.some(f=>f.round===r.id));
+    const rs=ROUNDS.filter(r=>isGS(r.id)||getBracketFx(state).some(f=>f.round===r.id));
     return(
       <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4}}>
         {rs.map(r=>{const on=active===r.id;return(
@@ -602,17 +679,36 @@ function App(){
         ):(
           <>
             {locked(activeRound)&&<div className="of" style={{background:T.gDim,border:`1px solid rgba(245,200,66,.25)`,borderRadius:12,padding:"10px 14px",marginBottom:12,fontSize:12,color:T.gold,fontWeight:700,textAlign:"center"}}>🔒 This round is locked</div>}
-            {state.koFixtures.filter(f=>f.round===activeRound).length===0?(
-              <div style={{textAlign:"center",padding:"50px 20px"}}><div style={{fontSize:40,marginBottom:14}}>⏳</div><div className="of" style={{color:T.mu,fontSize:14}}>Fixtures coming soon</div></div>
-            ):state.koFixtures.filter(f=>f.round===activeRound).map(f=><FxCard key={f.id} fx={f}/>)}
-            {activeRound==="final"&&state.koFixtures.some(f=>f.round==="final")&&(
+            {(()=>{
+              const roundFx=getFullBracketFx(state).filter(f=>f.round===activeRound);
+              const partialFx=getBracketFx(state).filter(f=>f.round===activeRound&&(!state.bracketSlots[f.id]?.h||!state.bracketSlots[f.id]?.a));
+              if(roundFx.length===0&&partialFx.length===0)return(
+                <div style={{textAlign:"center",padding:"50px 20px"}}><div style={{fontSize:40,marginBottom:14}}>⏳</div><div className="of" style={{color:T.mu,fontSize:14}}>Fixtures coming soon</div></div>
+              );
+              return(<>
+                {roundFx.map(f=><FxCard key={f.id} fx={f}/>)}
+                {partialFx.map(f=>(
+                  <div key={f.id} className="fx" style={{opacity:.6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center"}}>
+                      <span style={{fontSize:26}}>{flag(f.h)}</span>
+                      <span className="of" style={{fontWeight:700,fontSize:14,color:T.txM}}>{f.h}</span>
+                      <span className="of" style={{color:T.mu,fontSize:12,fontWeight:700,padding:"0 6px"}}>vs</span>
+                      <span className="of" style={{fontWeight:700,fontSize:14,color:T.txM}}>{f.a}</span>
+                      <span style={{fontSize:26}}>{flag(f.a)}</span>
+                    </div>
+                    <div className="of" style={{textAlign:"center",fontSize:11,color:T.mu,marginTop:8}}>⏳ Opponent TBD</div>
+                  </div>
+                ))}
+              </>);
+            })()}
+            {activeRound==="final"&&getFullBracketFx(state).some(f=>f.round==="final")&&(
               <div style={{background:T.sf,border:`1px solid ${T.bd}`,borderRadius:18,padding:18,marginTop:8}}>
                 <div className="bc" style={{fontWeight:900,fontSize:18,color:T.gold,marginBottom:4}}>⭐ Final Score Prediction</div>
                 <div className="of" style={{color:T.mu,fontSize:12,marginBottom:18}}>Predict the exact score for +5 bonus points</div>
                 <div style={{display:"flex",alignItems:"center",gap:14,justifyContent:"center",marginBottom:18}}>
-                  <div style={{textAlign:"center"}}><div style={{fontSize:22,marginBottom:8}}>{flag(state.koFixtures.find(f=>f.round==="final")?.h||"")}</div><input type="number" min="0" max="20" value={finalH} onChange={e=>setFinalH(e.target.value)} className="inp" style={{width:68,textAlign:"center",fontSize:28,fontWeight:900,padding:"8px"}}/></div>
+                  <div style={{textAlign:"center"}}><div style={{fontSize:22,marginBottom:8}}>{flag(getFullBracketFx(state).find(f=>f.round==="final")?.h||"")}</div><input type="number" min="0" max="20" value={finalH} onChange={e=>setFinalH(e.target.value)} className="inp" style={{width:68,textAlign:"center",fontSize:28,fontWeight:900,padding:"8px"}}/></div>
                   <div className="bc" style={{color:T.mu,fontWeight:900,fontSize:26}}>–</div>
-                  <div style={{textAlign:"center"}}><input type="number" min="0" max="20" value={finalA} onChange={e=>setFinalA(e.target.value)} className="inp" style={{width:68,textAlign:"center",fontSize:28,fontWeight:900,padding:"8px"}}/><div style={{fontSize:22,marginTop:8}}>{flag(state.koFixtures.find(f=>f.round==="final")?.a||"")}</div></div>
+                  <div style={{textAlign:"center"}}><input type="number" min="0" max="20" value={finalA} onChange={e=>setFinalA(e.target.value)} className="inp" style={{width:68,textAlign:"center",fontSize:28,fontWeight:900,padding:"8px"}}/><div style={{fontSize:22,marginTop:8}}>{flag(getFullBracketFx(state).find(f=>f.round==="final")?.a||"")}</div></div>
                 </div>
                 <button className="bb btn" disabled={locked("final")||finalH===""} onClick={()=>saveFinalSc(Number(finalH),Number(finalA))} style={{background:locked("final")||finalH===""?"rgba(255,255,255,.06)":`linear-gradient(135deg,${T.gold},rgba(245,200,66,.7))`,color:locked("final")||finalH===""?T.mu:"#07090f",cursor:locked("final")?"default":"pointer",boxShadow:locked("final")?"none":`0 6px 22px ${T.gGlow}`}}>Save Score Prediction</button>
               </div>
@@ -633,7 +729,7 @@ function App(){
       </div>
     );
     const rgS=isGS(aPR);
-    const fx=rgS?GS.filter(f=>`gs${f.md}`===aPR).map(f=>({...f,round:aPR})):state.koFixtures.filter(f=>f.round===aPR);
+    const fx=rgS?GS.filter(f=>`gs${f.md}`===aPR).map(f=>({...f,round:aPR})):getFullBracketFx(state).filter(f=>f.round===aPR);
     const pCol=v=>v==="H"?T.blue:v==="D"?T.gold:v==="A"?T.cy:T.mu;
     const pBg=v=>v==="H"?T.bDim:v==="D"?T.gDim:v==="A"?T.cyDim:"rgba(255,255,255,.04)";
     const pL=(v,f)=>v==="H"?flag(f?.h):v==="D"?"🤝":v==="A"?flag(f?.a):"–";
@@ -699,7 +795,7 @@ function App(){
 
   function Admin(){
     const gsR=isGS(activeRound);
-    const viewFx=gsR?GS.filter(f=>f.g===aGrp&&`gs${f.md}`===activeRound).map(f=>({...f,round:`gs${f.md}`})):state.koFixtures.filter(f=>f.round===activeRound);
+    const viewFx=gsR?GS.filter(f=>f.g===aGrp&&`gs${f.md}`===activeRound).map(f=>({...f,round:`gs${f.md}`})):getFullBracketFx(state).filter(f=>f.round===activeRound);
     const setD=(fxId,key,val)=>setDraft(d=>({...d,[fxId]:{...d[fxId],[key]:val}}));
     async function subRes(fx){
       const d=draft[fx.id]||{};const r=d.hasOwnProperty("r")?d.r:state.results[fx.id]?.r;
@@ -717,7 +813,7 @@ function App(){
         </div>
         <div style={{display:"flex",gap:5,marginBottom:16,background:"rgba(255,255,255,.04)",borderRadius:14,padding:5,border:`1px solid ${T.bd}`}}>
           {["results","progress","locks","fixtures","pins"].map(t=>(
-            <button key={t} className="btn of" onClick={()=>setAdminTab(t)} style={{flex:1,background:adminTab===t?T.cy:"transparent",color:adminTab===t?"#07090f":T.mu,border:"none",borderRadius:10,padding:"8px 4px",fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,boxShadow:adminTab===t?`0 0 16px ${T.cyGlow}`:"none"}}>{t}</button>
+            <button key={t} className="btn of" onClick={()=>{setAdminTab(t);if(t==="fixtures"&&isGS(activeRound))setActiveRound("r32");}} style={{flex:1,background:adminTab===t?T.cy:"transparent",color:adminTab===t?"#07090f":T.mu,border:"none",borderRadius:10,padding:"8px 4px",fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,boxShadow:adminTab===t?`0 0 16px ${T.cyGlow}`:"none"}}>{t}</button>
           ))}
         </div>
         {adminTab==="results"&&(
@@ -756,7 +852,7 @@ function App(){
           // Fixtures for the WHOLE selected round (all groups for GS rounds).
           const roundFx=isGS(activeRound)
             ? GS.filter(f=>`gs${f.md}`===activeRound)
-            : state.koFixtures.filter(f=>f.round===activeRound);
+            : getFullBracketFx(state).filter(f=>f.round===activeRound);
           const total=roundFx.length;
           // For each player: how many of this round's fixtures they've predicted.
           // We only check whether the prediction KEY exists — never the pick itself.
@@ -829,20 +925,65 @@ function App(){
         )}
         {adminTab==="fixtures"&&(
           <div>
-            <div className="fx" style={{marginBottom:14}}>
-              <div className="of" style={{fontWeight:800,fontSize:14,color:T.tx,marginBottom:12}}>Add Knockout Fixture</div>
-              <select value={koRound} onChange={e=>setKoRound(e.target.value)} className="inp" style={{marginBottom:8}}>{ROUNDS.filter(r=>!isGS(r.id)).map(r=><option key={r.id} value={r.id}>{r.label}</option>)}</select>
-              <input placeholder="Home team" value={koHome} onChange={e=>setKoHome(e.target.value)} className="inp" style={{marginBottom:8}}/>
-              <input placeholder="Away team" value={koAway} onChange={e=>setKoAway(e.target.value)} className="inp" style={{marginBottom:12}}/>
-              <button className="bb btn" onClick={addKO} style={{background:T.cy,color:"#fff",boxShadow:`0 4px 16px ${T.cyGlow}`}}>+ Add Fixture</button>
+            {/* Round tabs — KO rounds only */}
+            <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,marginBottom:12}}>
+              {ROUNDS.filter(r=>!isGS(r.id)).map(r=>{
+                const on=activeRound===r.id;
+                const total=BRACKET.filter(b=>b.round===r.id).length;
+                const done=BRACKET.filter(b=>b.round===r.id&&state.bracketSlots?.[b.id]?.h&&state.bracketSlots?.[b.id]?.a).length;
+                return(
+                  <button key={r.id} className="pill btn" onClick={()=>setActiveRound(r.id)} style={{flexShrink:0,background:on?T.cy:"rgba(15,28,64,.06)",color:on?"#fff":T.mu,border:on?`1px solid ${T.cy}`:`1px solid rgba(15,28,64,.1)`,boxShadow:on?`0 0 16px ${T.cyGlow}`:"none"}}>
+                    {r.short} <span style={{opacity:.7,fontSize:10}}>{done}/{total}</span>
+                  </button>
+                );
+              })}
             </div>
-            {state.koFixtures.length===0?(<div className="of" style={{textAlign:"center",color:T.mu,padding:24,fontSize:13}}>No knockout fixtures yet</div>)
-            :state.koFixtures.map(f=>(
-              <div key={f.id} className="fx" style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                <div><div className="of" style={{fontSize:10,color:T.cy,fontWeight:700,letterSpacing:1,marginBottom:3}}>{ROUNDS.find(r=>r.id===f.round)?.label}</div><div className="of" style={{fontSize:13,fontWeight:700,color:T.tx}}>{flag(f.h)} {f.h} vs {f.a} {flag(f.a)}</div></div>
-                <button className="btn of" onClick={()=>rmKO(f.id)} style={{borderRadius:10,padding:"7px 12px",fontSize:12,background:T.rDim,color:T.red,border:`1px solid rgba(248,113,113,.25)`}}>✕</button>
-              </div>
-            ))}
+            <div className="of" style={{color:T.mu,fontSize:11,marginBottom:14,textAlign:"center"}}>
+              Save with one team to mark TBD · players predict once both are set
+            </div>
+            {BRACKET.filter(bm=>bm.round===activeRound).map(bm=>{
+              const slot=state.bracketSlots?.[bm.id]||{};
+              const hVal=slot.h||"";const aVal=slot.a||"";
+              const bothSet=hVal&&aVal;
+              return(
+                <div key={bm.id} className="fx" style={{marginBottom:10,borderColor:bothSet?"rgba(52,211,153,.3)":"rgba(15,28,64,.09)"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                    <div className="of" style={{fontSize:11,color:T.mu,fontWeight:600}}>{bm.label}</div>
+                    <div className="of" style={{fontSize:10,color:bothSet?T.grn:T.mu,fontWeight:700}}>{bothSet?"✅":"⏳"}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:bothSet?10:0}}>
+                    <div style={{flex:1}}>
+                      <div className="of" style={{fontSize:10,color:T.mu,marginBottom:4,fontWeight:600}}>Home</div>
+                      <select className="inp" style={{fontSize:13,padding:"8px 10px"}}
+                        value={hVal}
+                        onChange={e=>saveBracketSlot(bm.id,"h",e.target.value)}>
+                        <option value="">— Select —</option>
+                        {ALL_TEAMS.map(t=><option key={t} value={t}>{flag(t)} {t}</option>)}
+                      </select>
+                    </div>
+                    <div className="bc" style={{color:T.mu,fontWeight:900,fontSize:18,flexShrink:0,paddingTop:18}}>vs</div>
+                    <div style={{flex:1}}>
+                      <div className="of" style={{fontSize:10,color:T.mu,marginBottom:4,fontWeight:600}}>Away</div>
+                      <select className="inp" style={{fontSize:13,padding:"8px 10px"}}
+                        value={aVal}
+                        onChange={e=>saveBracketSlot(bm.id,"a",e.target.value)}>
+                        <option value="">— Select —</option>
+                        {ALL_TEAMS.map(t=><option key={t} value={t}>{flag(t)} {t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {bothSet&&(
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"8px 0",borderTop:"1px solid rgba(15,28,64,.07)"}}>
+                      <span style={{fontSize:22}}>{flag(hVal)}</span>
+                      <span className="of" style={{fontWeight:800,fontSize:13,color:T.tx}}>{hVal}</span>
+                      <span className="of" style={{color:T.mu,fontSize:11,fontWeight:700}}>vs</span>
+                      <span className="of" style={{fontWeight:800,fontSize:13,color:T.tx}}>{aVal}</span>
+                      <span style={{fontSize:22}}>{flag(aVal)}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
         {adminTab==="pins"&&(
