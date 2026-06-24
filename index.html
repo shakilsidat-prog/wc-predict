@@ -382,37 +382,7 @@ function App(){
     return c;
   }
 
-  function ConsBar({fxId,round,myPred,fx}){
-    if(!state)return null;
-    const show=locked(round)||(player&&!!state.predictions[`${player.id}_${fxId}`]);
-    if(!show)return null;
-    const c=consensus(fxId);
-    const total=c.H+c.D+c.A;
-    if(total===0)return null;
-    const rows=[{v:"H",l:"HOME",col:T.blue},...(isGS(round)?[{v:"D",l:"DRAW",col:T.gold}]:[]),{v:"A",l:"AWAY",col:T.cy}];
-    return(
-      <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid rgba(15,28,64,.08)"}}>
-        <div className="of" style={{fontSize:9,fontWeight:700,letterSpacing:2.5,color:T.mu,marginBottom:10,textTransform:"uppercase"}}>
-          Group Consensus · {total}/{PLAYERS.length} predicted
-        </div>
-        {rows.map(({v,l,col})=>{
-          const count=c[v],pct=(count/PLAYERS.length)*100,isMe=myPred===v;
-          return(
-            <div key={v} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-              <div className="bc" style={{width:38,fontSize:11,fontWeight:900,letterSpacing:1,color:isMe?col:T.mu,flexShrink:0}}>{l}</div>
-              <div style={{flex:1,height:6,background:"rgba(15,28,64,.07)",borderRadius:100,overflow:"hidden"}}>
-                <div style={{height:"100%",width:pct>0?`${pct}%`:"0%",borderRadius:100,background:col,opacity:isMe?1:count>0?0.4:0,transition:"width 1s cubic-bezier(.34,1.4,.64,1)"}}/>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0,minWidth:30,justifyContent:"flex-end"}}>
-                <span className="bc" style={{fontSize:16,fontWeight:900,color:isMe?col:count>0?T.txM:T.mu}}>{count}</span>
-                {isMe&&<span style={{fontSize:10,color:col}}>◀</span>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
+
 
   function RTabs({active,onSelect,col}){
     const c=col||T.blue;
@@ -490,7 +460,7 @@ function App(){
         </div>
         {player&&!isAdmin?(<div style={{display:"flex",gap:7}}><button className={cls("H")} onClick={()=>pick("H")} style={{fontSize:22}}>{flag(fx.h)}</button>{isGS(fx.round)&&<button className={cls("D")} onClick={()=>pick("D")} style={{fontSize:22}}>🤝</button>}<button className={cls("A")} onClick={()=>pick("A")} style={{fontSize:22}}>{flag(fx.a)}</button></div>)
         :lk&&!res?(<div className="of" style={{textAlign:"center",fontSize:11,color:T.gold,fontWeight:700,letterSpacing:1}}>🔒 LOCKED</div>):null}
-        <ConsBar fxId={fx.id} round={fx.round} myPred={myPred} fx={fx}/>
+
       </div>
     );
   }
