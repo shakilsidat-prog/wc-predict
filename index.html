@@ -288,8 +288,8 @@ function App(){
   async function saveRes(fxId,r,hs,as_){
     if(!state)return;
     await mergeSave(
-      fresh=>{const next={...fresh.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_};return {...fresh,results:next};},
-      cur=>{const next={...cur.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_};return {...cur,results:next};}
+      fresh=>{const next={...fresh.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_,savedAt:Date.now()};return {...fresh,results:next};},
+      cur=>{const next={...cur.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_,savedAt:Date.now()};return {...cur,results:next};}
     );
     toast2(r?"Result saved ✓":"Cleared");
     // Auto-cascade winner into next bracket slot
@@ -631,9 +631,9 @@ function App(){
         </div>
 
         {(()=>{
-          // All fixtures in entry order, filtered to those with a result
+          // Sort resolved fixtures by savedAt timestamp (order admin entered them), falling back to array order
           const allFx=[...GS.map(f=>({...f,round:`gs${f.md}`})),...getFullBracketFx(state)];
-          const resolvedFx=allFx.filter(f=>state.results[f.id]);
+          const resolvedFx=allFx.filter(f=>state.results[f.id]).sort((a,b)=>(state.results[a.id].savedAt||0)-(state.results[b.id].savedAt||0));
           if(resolvedFx.length===0)return null;
           const last5=resolvedFx.slice(-5);
           const formData=PLAYERS.map(p=>{
