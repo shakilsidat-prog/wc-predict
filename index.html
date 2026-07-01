@@ -151,6 +151,26 @@ const BRACKET=[
   {id:"m104",round:"final",label:"M104 · Final",nextMatch:null,nextSide:null},
 ];
 
+// Kickoff date/time (BST) for R16 onward — confirmed by FIFA/UK broadcasters.
+// Format: "YYYY-MM-DDTHH:MM" local BST wall-clock time (not UTC — display only, no timezone math needed).
+const SCHEDULE={
+  m89:"2026-07-04T22:00",  m90:"2026-07-04T18:00",
+  m91:"2026-07-05T21:00",  m92:"2026-07-06T01:00",
+  m93:"2026-07-06T20:00",  m94:"2026-07-07T01:00",
+  m95:"2026-07-07T17:00",  m96:"2026-07-07T21:00",
+  m97:"2026-07-09T21:00",  m98:"2026-07-10T20:00",
+  m99:"2026-07-11T22:00",  m100:"2026-07-12T02:00",
+  m101:"2026-07-14T20:00", m102:"2026-07-15T20:00",
+  m104:"2026-07-19T20:00",
+};
+function fmtSchedule(fxId){
+  const s=SCHEDULE[fxId];if(!s)return null;
+  const [datePart,timePart]=s.split("T");
+  const d=new Date(datePart+"T00:00:00");
+  const day=d.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
+  return `${day} · ${timePart} BST`;
+}
+
 // Convert bracketSlots state into array of fixture objects (same shape as old koFixtures)
 function getBracketFx(state){
   const slots=state.bracketSlots||{};
@@ -476,6 +496,7 @@ function App(){
     };
     return(
       <div className="fx" style={{borderColor:ok?"rgba(52,211,153,.28)":ng?"rgba(248,113,113,.22)":"rgba(255,255,255,.08)",background:ok?"rgba(52,211,153,.04)":ng?"rgba(248,113,113,.04)":"rgba(255,255,255,.04)"}}>
+        {fmtSchedule(fx.id)&&<div className="of" style={{textAlign:"center",fontSize:11,fontWeight:700,color:T.mu,letterSpacing:.3,marginBottom:14}}>📅 {fmtSchedule(fx.id)}</div>}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
           <div style={{flex:1,textAlign:"right"}}>
             <div style={{fontSize:30}}>{flag(fx.h)}</div>
@@ -824,6 +845,7 @@ function App(){
           const res=state.results[f.id];
           return(
             <div key={f.id} style={{background:T.sf,border:`1px solid ${T.bd}`,borderRadius:20,marginBottom:14,overflow:"hidden"}}>
+              {fmtSchedule(f.id)&&<div className="of" style={{textAlign:"center",fontSize:11,fontWeight:700,color:T.mu,letterSpacing:.3,padding:"10px 0 0"}}>📅 {fmtSchedule(f.id)}</div>}
               <div style={{background:"rgba(255,255,255,.04)",padding:"14px 16px",borderBottom:`1px solid ${T.bd}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>{flag(f.h)}</span><span className="bc" style={{fontWeight:900,fontSize:14,color:T.tx,letterSpacing:.5}}>{f.h}</span></div>
                 <div>{res?(<div className="bc" style={{fontWeight:900,fontSize:13,letterSpacing:1.5,background:T.grnDim,color:T.grn,border:`1px solid rgba(52,211,153,.3)`,borderRadius:8,padding:"4px 12px"}}>{res.r==="H"?"1":res.r==="D"?"X":"2"}{res.hs!==undefined?` · ${res.hs}–${res.as}`:""}</div>):(<div className="of" style={{fontSize:11,color:T.mu,fontWeight:700}}>vs</div>)}</div>
