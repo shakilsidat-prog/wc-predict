@@ -41,12 +41,13 @@ const PLAYERS=[
   {id:"pritesh",name:"Pritesh"},{id:"shakils",name:"Shakil S"},{id:"rizwan",name:"Rizwan"},
   {id:"ashy",name:"Ashy"},{id:"shakilsh",name:"Shaikh"},
 ];
-const POINTS={gs1:1,gs2:1,gs3:1,r32:2,r16:3,qf:5,sf:7,final:10,bonus:5};
+const POINTS={gs1:1,gs2:1,gs3:1,r32:2,r16:3,qf:5,sf:7,third:5,final:10,bonus:5};
 const ROUNDS=[
   {id:"gs1",label:"Matchday 1",short:"MD1"},{id:"gs2",label:"Matchday 2",short:"MD2"},
   {id:"gs3",label:"Matchday 3",short:"MD3"},{id:"r32",label:"Round of 32",short:"R32"},
   {id:"r16",label:"Round of 16",short:"R16"},{id:"qf",label:"Quarter-Finals",short:"QF"},
-  {id:"sf",label:"Semi-Finals",short:"SF"},{id:"final",label:"Final",short:"FIN"},
+  {id:"sf",label:"Semi-Finals",short:"SF"},{id:"third",label:"Third-Place Playoff",short:"3RD"},
+  {id:"final",label:"Final",short:"FIN"},
 ];
 const STAGES=[
   {id:"gs",short:"GS"},{id:"r32",short:"R32"},{id:"r16",short:"R16"},
@@ -71,7 +72,7 @@ const GROUPS=["A","B","C","D","E","F","G","H","I","J","K","L"];
 const defaultState=()=>({
   pins:Object.fromEntries(PLAYERS.map(p=>[p.id,"1111"])),
   adminPass:"WC2026!",predictions:{},finalScores:{},results:{},
-  locks:{gs1:false,gs2:false,gs3:false,r32:false,r16:false,qf:false,sf:false,final:false},
+  locks:{gs1:false,gs2:false,gs3:false,r32:false,r16:false,qf:false,sf:false,third:false,final:false},
   bracketSlots:{},deadlines:{gs1:"",gs2:"",gs3:""},
 });
 const T={
@@ -146,30 +147,11 @@ const BRACKET=[
   {id:"m98",round:"qf", label:"M98 · W93 vs W94",nextMatch:"m101",nextSide:"a"},
   {id:"m99",round:"qf", label:"M99 · W91 vs W92",nextMatch:"m102",nextSide:"h"},
   {id:"m100",round:"qf",label:"M100 · W95 vs W96",nextMatch:"m102",nextSide:"a"},
-  {id:"m101",round:"sf", label:"M101 · W97 vs W98", nextMatch:"m104",nextSide:"h"},
-  {id:"m102",round:"sf", label:"M102 · W99 vs W100",nextMatch:"m104",nextSide:"a"},
+  {id:"m101",round:"sf", label:"M101 · W97 vs W98", nextMatch:"m104",nextSide:"h", loseMatch:"m103",loseSide:"h"},
+  {id:"m102",round:"sf", label:"M102 · W99 vs W100",nextMatch:"m104",nextSide:"a", loseMatch:"m103",loseSide:"a"},
+  {id:"m103",round:"third",label:"M103 · Third-Place Playoff (L101 vs L102)",nextMatch:null,nextSide:null},
   {id:"m104",round:"final",label:"M104 · Final",nextMatch:null,nextSide:null},
 ];
-
-// Kickoff date/time (BST) for R16 onward — confirmed by FIFA/UK broadcasters.
-// Format: "YYYY-MM-DDTHH:MM" local BST wall-clock time (not UTC — display only, no timezone math needed).
-const SCHEDULE={
-  m89:"2026-07-04T22:00",  m90:"2026-07-04T18:00",
-  m91:"2026-07-05T21:00",  m92:"2026-07-06T01:00",
-  m93:"2026-07-06T20:00",  m94:"2026-07-07T01:00",
-  m95:"2026-07-07T17:00",  m96:"2026-07-07T21:00",
-  m97:"2026-07-09T21:00",  m98:"2026-07-10T20:00",
-  m99:"2026-07-11T22:00",  m100:"2026-07-12T02:00",
-  m101:"2026-07-14T20:00", m102:"2026-07-15T20:00",
-  m104:"2026-07-19T20:00",
-};
-function fmtSchedule(fxId){
-  const s=SCHEDULE[fxId];if(!s)return null;
-  const [datePart,timePart]=s.split("T");
-  const d=new Date(datePart+"T00:00:00");
-  const day=d.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
-  return `${day} · ${timePart} BST`;
-}
 
 // Convert bracketSlots state into array of fixture objects (same shape as old koFixtures)
 function getBracketFx(state){
@@ -189,7 +171,7 @@ function getFullBracketFx(state){
 function calcScores(state){
   const all=[...GS.map(f=>({...f,round:`gs${f.md}`})),...getFullBracketFx(state)];
   const sc={};
-  PLAYERS.forEach(p=>{sc[p.id]={total:0,gs:0,gs1:0,gs2:0,gs3:0,r32:0,r16:0,qf:0,sf:0,final:0};});
+  PLAYERS.forEach(p=>{sc[p.id]={total:0,gs:0,gs1:0,gs2:0,gs3:0,r32:0,r16:0,qf:0,sf:0,third:0,final:0};});
   all.forEach(f=>{
     const res=state.results[f.id];if(!res)return;
     const pts=POINTS[f.round]||0;
@@ -308,12 +290,14 @@ function App(){
   async function saveRes(fxId,r,hs,as_){
     if(!state)return;
     await mergeSave(
-      fresh=>{const next={...fresh.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_,savedAt:Date.now()};return {...fresh,results:next};},
-      cur=>{const next={...cur.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_,savedAt:Date.now()};return {...cur,results:next};}
+      fresh=>{const next={...fresh.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_};return {...fresh,results:next};},
+      cur=>{const next={...cur.results};if(r===null)delete next[fxId];else next[fxId]={r,hs,as:as_};return {...cur,results:next};}
     );
     toast2(r?"Result saved ✓":"Cleared");
     // Auto-cascade winner into next bracket slot
     if(r&&BRACKET.some(b=>b.id===fxId))await cascadeWinner(fxId,r);
+    // Auto-cascade loser into third-place slot (semis only)
+    if(r&&BRACKET.some(b=>b.id===fxId&&b.loseMatch))await cascadeLoser(fxId,r);
   }
   async function toggleLock(rid){
     if(!state)return;
@@ -361,6 +345,33 @@ function App(){
         if(!winner||winner==="TBD")return cur;
         const s={...cur.bracketSlots};
         s[bm.nextMatch]={...(s[bm.nextMatch]||{}),[bm.nextSide]:winner};
+        return {...cur,bracketSlots:s};
+      }
+    );
+  }
+  // When a semi-final result is saved, cascade the LOSER into the third-place slot.
+  // Kept as a separate function so the proven cascadeWinner logic is never touched.
+  // Reads the slot from the fresh bin (same stale-closure-safe pattern as cascadeWinner).
+  async function cascadeLoser(matchId, resultR){
+    if(!state)return;
+    const bm=BRACKET.find(b=>b.id===matchId);
+    if(!bm||!bm.loseMatch)return;
+    await mergeSave(
+      fresh=>{
+        const slot=(fresh.bracketSlots||{})[matchId]||{};
+        // Loser is the OPPOSITE side of the winner
+        const loser=resultR==="H"?slot.a:resultR==="A"?slot.h:null;
+        if(!loser||loser==="TBD")return fresh; // nothing to cascade
+        const s={...fresh.bracketSlots};
+        s[bm.loseMatch]={...(s[bm.loseMatch]||{}),[bm.loseSide]:loser};
+        return {...fresh,bracketSlots:s};
+      },
+      cur=>{
+        const slot=(cur.bracketSlots||{})[matchId]||{};
+        const loser=resultR==="H"?slot.a:resultR==="A"?slot.h:null;
+        if(!loser||loser==="TBD")return cur;
+        const s={...cur.bracketSlots};
+        s[bm.loseMatch]={...(s[bm.loseMatch]||{}),[bm.loseSide]:loser};
         return {...cur,bracketSlots:s};
       }
     );
@@ -496,7 +507,6 @@ function App(){
     };
     return(
       <div className="fx" style={{borderColor:ok?"rgba(52,211,153,.28)":ng?"rgba(248,113,113,.22)":"rgba(255,255,255,.08)",background:ok?"rgba(52,211,153,.04)":ng?"rgba(248,113,113,.04)":"rgba(255,255,255,.04)"}}>
-        {fmtSchedule(fx.id)&&<div className="of" style={{textAlign:"center",fontSize:11,fontWeight:700,color:T.mu,letterSpacing:.3,marginBottom:14}}>📅 {fmtSchedule(fx.id)}</div>}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
           <div style={{flex:1,textAlign:"right"}}>
             <div style={{fontSize:30}}>{flag(fx.h)}</div>
@@ -621,7 +631,7 @@ function App(){
                     </div>
                     {/* Per-stage scores with top-3 highlighting */}
                     {STAGES.map(st=>{
-                      const val=s[st.id]||0;
+                      const val=st.id==="final"?((s.final||0)+(s.third||0)):(s[st.id]||0);
                       const rank=stageRank(st.id,val);
                       const col=rank>=0?rankCol(rank):"";
                       const glow=rank>=0?rankGlow(rank):"";
@@ -648,13 +658,13 @@ function App(){
               </div>
             ))}
           </div>
-          <div className="of" style={{fontSize:10,color:T.mu,marginTop:12}}>★ = round leader · tap your team's flag to predict · 🤝 = Draw · consensus shows after you predict</div>
+          <div className="of" style={{fontSize:10,color:T.mu,marginTop:12}}>★ = round leader · tap your team's flag to predict · 🤝 = Draw · consensus shows after you predict · 3rd-place points count in the FIN column</div>
         </div>
 
         {(()=>{
-          // Sort resolved fixtures by savedAt timestamp (order admin entered them), falling back to array order
+          // All fixtures in entry order, filtered to those with a result
           const allFx=[...GS.map(f=>({...f,round:`gs${f.md}`})),...getFullBracketFx(state)];
-          const resolvedFx=allFx.filter(f=>state.results[f.id]).sort((a,b)=>(state.results[a.id].savedAt||0)-(state.results[b.id].savedAt||0));
+          const resolvedFx=allFx.filter(f=>state.results[f.id]);
           if(resolvedFx.length===0)return null;
           const last5=resolvedFx.slice(-5);
           const formData=PLAYERS.map(p=>{
@@ -736,8 +746,8 @@ function App(){
               <div className="of" style={{color:"rgba(255,255,255,.6)",fontSize:10,marginTop:3}}>points total</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
-              {STAGES.filter(s=>mySc[s.id]>0).map(st=>(
-                <div key={st.id} className="of" style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",borderRadius:100,padding:"4px 12px",fontSize:11,color:T.txM,fontWeight:700}}>{st.short} · {mySc[st.id]}</div>
+              {STAGES.filter(s=>(s.id==="final"?((mySc.final||0)+(mySc.third||0)):mySc[s.id])>0).map(st=>(
+                <div key={st.id} className="of" style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",borderRadius:100,padding:"4px 12px",fontSize:11,color:T.txM,fontWeight:700}}>{st.short} · {st.id==="final"?((mySc.final||0)+(mySc.third||0)):mySc[st.id]}</div>
               ))}
             </div>
           </div>
@@ -845,7 +855,6 @@ function App(){
           const res=state.results[f.id];
           return(
             <div key={f.id} style={{background:T.sf,border:`1px solid ${T.bd}`,borderRadius:20,marginBottom:14,overflow:"hidden"}}>
-              {fmtSchedule(f.id)&&<div className="of" style={{textAlign:"center",fontSize:11,fontWeight:700,color:T.mu,letterSpacing:.3,padding:"10px 0 0"}}>📅 {fmtSchedule(f.id)}</div>}
               <div style={{background:"rgba(255,255,255,.04)",padding:"14px 16px",borderBottom:`1px solid ${T.bd}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>{flag(f.h)}</span><span className="bc" style={{fontWeight:900,fontSize:14,color:T.tx,letterSpacing:.5}}>{f.h}</span></div>
                 <div>{res?(<div className="bc" style={{fontWeight:900,fontSize:13,letterSpacing:1.5,background:T.grnDim,color:T.grn,border:`1px solid rgba(52,211,153,.3)`,borderRadius:8,padding:"4px 12px"}}>{res.r==="H"?"1":res.r==="D"?"X":"2"}{res.hs!==undefined?` · ${res.hs}–${res.as}`:""}</div>):(<div className="of" style={{fontSize:11,color:T.mu,fontWeight:700}}>vs</div>)}</div>
