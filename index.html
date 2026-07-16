@@ -27,6 +27,10 @@
     @keyframes fall1{0%{transform:translate(0,0) rotate(0deg);opacity:1}100%{transform:translate(120px,220px) rotate(-270deg);opacity:0}}
     @keyframes fall2{0%{transform:translate(0,0) rotate(0deg);opacity:1}100%{transform:translate(-60px,180px) rotate(180deg);opacity:0}}
     @keyframes reveal{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+    @keyframes champIn{0%{opacity:0;transform:scale(.7) translateY(30px)}60%{transform:scale(1.04)}100%{opacity:1;transform:scale(1) translateY(0)}}
+    @keyframes champGlow{0%,100%{filter:drop-shadow(0 0 18px rgba(245,200,66,.5))}50%{filter:drop-shadow(0 0 42px rgba(245,200,66,.9))}}
+    @keyframes champFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
+    @keyframes riseUp{0%{opacity:0;transform:translateY(40px)}100%{opacity:1;transform:translateY(0)}}
   </style>
 </head>
 <body>
@@ -211,6 +215,7 @@ function App(){
   const [pts,setPts]=useState(0);
   const [predRound,setPredRound]=useState(null);
   const [aGrp,setAGrp]=useState("A");
+  const [dismissChamp,setDismissChamp]=useState(false);
 
   useEffect(()=>{load();},[]);
   useEffect(()=>{
@@ -407,6 +412,15 @@ function App(){
     return getBracketFx(state).some(f=>f.round===r.id);
   });
 
+  // The tournament is "done" once the Final match has a result entered.
+  const finalFx=getFullBracketFx(state).find(f=>f.round==="final");
+  const finalRes=finalFx?state.results[finalFx.id]:null;
+  const tournamentDone=!!(finalFx&&finalRes);
+  // The champion of the prediction league = current leaderboard leader.
+  const champion=tournamentDone&&ranked.length>0?ranked[0]:null;
+  const champScore=champion?scores[champion.id]?.total||0:0;
+  const champIdx=champion?PLAYERS.findIndex(p=>p.id===champion.id):0;
+
   function consensus(fxId){
     const c={H:0,D:0,A:0};
     PLAYERS.forEach(p=>{const v=state.predictions[`${p.id}_${fxId}`];if(v)c[v]++;});
@@ -505,6 +519,39 @@ function App(){
       if(res){if(myPred===res.r)boom();return;}
       navigator.vibrate&&navigator.vibrate(50);savePred(fx.id,myPred===v?null:v);
     };
+    const isFinal=fx.round==="final";
+    if(isFinal)return(
+      <div style={{position:"relative",borderRadius:22,marginBottom:14,overflow:"hidden",border:`1.5px solid ${ok?"rgba(52,211,153,.5)":ng?"rgba(248,113,113,.4)":"rgba(196,125,6,.5)"}`,boxShadow:`0 8px 34px ${ok?"rgba(52,211,153,.22)":ng?"rgba(248,113,113,.18)":"rgba(196,125,6,.28)"}`,background:"linear-gradient(160deg,#1a2c5a 0%,#0f1c40 100%)"}}>
+        <div style={{position:"absolute",inset:0,backgroundImage:"url('trophy.jpg')",backgroundSize:"cover",backgroundPosition:"center top",opacity:.2,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,rgba(26,44,90,.82),rgba(15,28,64,.9))",pointerEvents:"none"}}/>
+        <div style={{position:"relative",padding:"18px"}}>
+          <div style={{textAlign:"center",marginBottom:14}}>
+            <div className="bc" style={{fontSize:11,fontWeight:900,letterSpacing:5,color:T.gold,textTransform:"uppercase",filter:`drop-shadow(0 0 10px ${T.gGlow})`}}>🏆 The Final 🏆</div>
+            <div className="of" style={{fontSize:9,fontWeight:700,letterSpacing:2,color:"rgba(255,255,255,.45)",marginTop:3,textTransform:"uppercase"}}>Worth {POINTS.final} pts · +{POINTS.bonus} exact score</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <div style={{flex:1,textAlign:"right"}}>
+              <div style={{fontSize:36}}>{flag(fx.h)}</div>
+              <div className="of" style={{fontSize:13,fontWeight:800,color:"#fff",marginTop:5,lineHeight:1.3}}>{fx.h}</div>
+            </div>
+            <div style={{flexShrink:0,textAlign:"center",minWidth:56}}>
+              {res?(<div className="bc" style={{fontSize:15,fontWeight:900,letterSpacing:1.5,color:ok?T.grn:ng?"#ff9b8f":T.gold,background:"rgba(255,255,255,.08)",border:`1px solid ${ok?"rgba(52,211,153,.4)":ng?"rgba(248,113,113,.4)":"rgba(245,200,66,.35)"}`,borderRadius:10,padding:"5px 10px",display:"inline-block"}}>
+                {res.r==="H"?"1":res.r==="D"?"X":"2"}{res.hs!==undefined?` · ${res.hs}–${res.as}`:""}
+              </div>):(
+                <div className="bc" style={{fontSize:14,fontWeight:800,color:T.gold,letterSpacing:2}}>VS</div>
+              )}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:36}}>{flag(fx.a)}</div>
+              <div className="of" style={{fontSize:13,fontWeight:800,color:"#fff",marginTop:5,lineHeight:1.3}}>{fx.a}</div>
+            </div>
+          </div>
+          {player&&!isAdmin?(<div style={{display:"flex",gap:7}}><button className={cls("H")} onClick={()=>pick("H")} style={{fontSize:22}}>{flag(fx.h)}</button><button className={cls("A")} onClick={()=>pick("A")} style={{fontSize:22}}>{flag(fx.a)}</button></div>)
+          :lk&&!res?(<div className="of" style={{textAlign:"center",fontSize:11,color:T.gold,fontWeight:700,letterSpacing:1}}>🔒 LOCKED</div>):null}
+          <ConsBar fxId={fx.id} round={fx.round} myPred={myPred} fx={fx}/>
+        </div>
+      </div>
+    );
     return(
       <div className="fx" style={{borderColor:ok?"rgba(52,211,153,.28)":ng?"rgba(248,113,113,.22)":"rgba(255,255,255,.08)",background:ok?"rgba(52,211,153,.04)":ng?"rgba(248,113,113,.04)":"rgba(255,255,255,.04)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
@@ -535,9 +582,45 @@ function App(){
     const now=new Date(),ko=new Date("2026-06-11T19:00:00Z");
     const diff=Math.max(0,ko-now);
     const days=Math.floor(diff/86400000),hrs=Math.floor((diff%86400000)/3600000),mins=Math.floor((diff%3600000)/60000);
+    // Top 3 for the podium — arranged 2nd · 1st · 3rd
+    const podium=tournamentDone?[ranked[1],ranked[0],ranked[2]].filter(Boolean).map((p,vis)=>{
+      const place=p===ranked[0]?1:p===ranked[1]?2:3;
+      return{p,place};
+    }):[];
     return(
       <div>
         {confetti.length>0&&(<div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:200}}>{confetti.map(p=><div key={p.id} style={{position:"absolute",left:`${p.x}%`,top:"40%",width:p.r*2,height:p.r*2,borderRadius:p.r>5?2:p.r,background:p.color,animation:`fall${p.id%3} 1.5s ease-out forwards`}}/>)}</div>)}
+        {tournamentDone&&podium.length>0&&(
+          <div style={{position:"relative",borderRadius:24,overflow:"hidden",marginBottom:20,padding:"24px 18px 20px",background:"linear-gradient(160deg,#1a2c5a 0%,#0f1c40 100%)",boxShadow:"0 8px 40px rgba(196,125,6,.25)",border:"1px solid rgba(196,125,6,.3)"}}>
+            <div style={{position:"absolute",inset:0,backgroundImage:"url('trophy.jpg')",backgroundSize:"cover",backgroundPosition:"center top",opacity:.16,pointerEvents:"none"}}/>
+            <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,rgba(26,44,90,.85),rgba(15,28,64,.92))",pointerEvents:"none"}}/>
+            <div style={{position:"relative"}}>
+              <div className="bc" style={{textAlign:"center",fontSize:13,fontWeight:900,letterSpacing:4,color:T.gold,textTransform:"uppercase",marginBottom:18,filter:`drop-shadow(0 0 12px ${T.gGlow})`}}>🏆 Final Standings 🏆</div>
+              <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",gap:8}}>
+                {podium.map(({p,place})=>{
+                  const idx=PLAYERS.findIndex(x=>x.id===p.id);
+                  const [bg,bd,ac]=AV[idx%AV.length];
+                  const h=place===1?108:place===2?80:62;
+                  const medal=place===1?"🥇":place===2?"🥈":"🥉";
+                  const col=place===1?T.gold:place===2?"rgba(200,210,230,.9)":"rgba(190,140,90,.9)";
+                  return(
+                    <div key={p.id} style={{flex:place===1?1.1:1,maxWidth:120,display:"flex",flexDirection:"column",alignItems:"center",animation:`riseUp .6s ease ${place===1?.1:place===2?.25:.4}s both`}}>
+                      <div style={{fontSize:place===1?30:24,marginBottom:6,animation:place===1?"champGlow 2s infinite":"none"}}>{medal}</div>
+                      <div style={{width:place===1?52:42,height:place===1?52:42,borderRadius:"50%",background:bg,border:`2px solid ${col}`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:8,boxShadow:`0 4px 16px ${col}55`}}>
+                        <span className="bc" style={{fontSize:place===1?22:17,fontWeight:900,color:ac}}>{p.name.charAt(0)}</span>
+                      </div>
+                      <div className="of" style={{fontSize:place===1?14:12,fontWeight:800,color:"#fff",marginBottom:2,textAlign:"center",whiteSpace:"nowrap"}}>{p.name}</div>
+                      <div className="bc" style={{fontSize:place===1?24:18,fontWeight:900,color:col,marginBottom:8}}>{scores[p.id]?.total||0}</div>
+                      <div style={{width:"100%",height:h,borderRadius:"10px 10px 0 0",background:place===1?`linear-gradient(180deg,${T.gold},rgba(196,125,6,.6))`:place===2?"linear-gradient(180deg,rgba(200,210,230,.5),rgba(200,210,230,.15))":"linear-gradient(180deg,rgba(190,140,90,.5),rgba(190,140,90,.15))",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:8,border:`1px solid ${col}44`,borderBottom:"none"}}>
+                        <span className="bc" style={{fontSize:place===1?34:26,fontWeight:900,color:place===1?"#0f1c40":"#fff",opacity:.9}}>{place}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
         <div style={{position:"relative",borderRadius:24,overflow:"hidden",marginBottom:20,padding:"32px 24px 28px",textAlign:"center",background:"linear-gradient(160deg,#1a3a8f 0%,#2952d4 50%,#1a3a8f 100%)",border:"none",boxShadow:"0 8px 40px rgba(41,82,212,.3)"}}>
           <div style={{position:"absolute",inset:0,backgroundImage:"url('stadium.jpg')",backgroundSize:"cover",backgroundPosition:"center",opacity:.35,pointerEvents:"none"}}/>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,rgba(26,58,143,.82),rgba(41,82,212,.72) 50%,rgba(26,58,143,.82))",pointerEvents:"none"}}/>
@@ -865,13 +948,21 @@ function App(){
                   const pred=state.predictions[`${p.id}_${f.id}`],isMe=player?.id===p.id;
                   const corr=res&&pred&&pred===res.r,wrg=res&&pred&&pred!==res.r;
                   const [bg,bd,ac]=AV[pi%AV.length];
+                  // On the Final, once locked, show each player's exact score prediction.
+                  const isFinalFx=f.round==="final";
+                  const fsc=isFinalFx?state.finalScores?.[p.id]:null;
+                  const showFsc=isFinalFx&&locked("final")&&fsc&&fsc.home!==undefined&&fsc.away!==undefined;
+                  const exact=showFsc&&res&&res.hs!==undefined&&fsc.home===res.hs&&fsc.away===res.as;
                   return(
                     <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:isMe?T.bDim:"rgba(255,255,255,.03)",border:`1px solid ${isMe?"rgba(122,165,255,.2)":T.bd}`,borderRadius:12,padding:"8px 10px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <div style={{width:28,height:28,borderRadius:"50%",background:bg,border:`1.5px solid ${bd}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                           <span className="bc" style={{fontSize:12,fontWeight:900,color:ac}}>{p.name.charAt(0)}</span>
                         </div>
-                        <span className="of" style={{fontSize:12,fontWeight:isMe?800:600,color:isMe?T.blue:T.txM}}>{p.name}{isMe?" ◀":""}</span>
+                        <div style={{minWidth:0}}>
+                          <span className="of" style={{fontSize:12,fontWeight:isMe?800:600,color:isMe?T.blue:T.txM}}>{p.name}{isMe?" ◀":""}</span>
+                          {showFsc&&<div className="bc" style={{fontSize:11,fontWeight:900,letterSpacing:.5,color:exact?T.grn:T.gold,marginTop:1}}>{fsc.home}–{fsc.away}{exact?" 🎯":""}</div>}
+                        </div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:5}}>
                         <span className="bc" style={{background:pred?pBg(pred):"rgba(255,255,255,.04)",color:pred?pCol(pred):T.mu,border:`1px solid ${pred?pCol(pred)+"40":"rgba(255,255,255,.08)"}`,borderRadius:8,padding:"2px 10px",fontSize:18,fontWeight:900,minWidth:30,textAlign:"center",display:"inline-block"}}>{pL(pred,f)}</span>
@@ -1200,6 +1291,41 @@ function App(){
     </>
   );
   if(!state)return null;
+
+  // Full champion takeover — shows on load when the Final result is in, dismiss for the session.
+  if(champion&&!dismissChamp){
+    const [cbg,cbd,cac]=AV[champIdx%AV.length];
+    const cconf=Array.from({length:40},(_,i)=>({id:i,x:Math.random()*100,d:Math.random()*3,dur:2.5+Math.random()*2,color:["#f5c842","#7aa5ff","#34d399","#f87171","#38bdf8","#c084fc"][i%6],r:Math.random()*5+4}));
+    return(
+      <>
+        <style>{CSS}</style>
+        <div style={{position:"fixed",inset:0,zIndex:500,overflow:"hidden",background:"linear-gradient(160deg,#1a2c5a 0%,#0f1c40 60%,#0a1330 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px",textAlign:"center"}}>
+          <div style={{position:"absolute",inset:0,backgroundImage:"url('trophy.jpg')",backgroundSize:"cover",backgroundPosition:"center top",opacity:.22,pointerEvents:"none"}}/>
+          <div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 50% 35%,rgba(196,125,6,.25),transparent 60%)",pointerEvents:"none"}}/>
+          {cconf.map(c=><div key={c.id} style={{position:"absolute",left:`${c.x}%`,top:"-5%",width:c.r*2,height:c.r*2,borderRadius:c.r>6?2:c.r,background:c.color,animation:`champFall ${c.dur}s linear ${c.d}s infinite`}}/>)}
+          <div style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",animation:"champIn .8s cubic-bezier(.34,1.4,.64,1) both"}}>
+            <div style={{fontSize:88,animation:"champGlow 2s infinite",marginBottom:8}}>🏆</div>
+            <div className="bc" style={{fontSize:14,fontWeight:900,letterSpacing:6,color:T.gold,textTransform:"uppercase",marginBottom:22}}>Champion 2026</div>
+            <div style={{width:104,height:104,borderRadius:"50%",background:cbg,border:`3px solid ${T.gold}`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 8px 40px ${T.gGlow}`,marginBottom:18,animation:"champGlow 2s infinite"}}>
+              <span className="bc" style={{fontSize:48,fontWeight:900,color:cac}}>{champion.name.charAt(0)}</span>
+            </div>
+            <div className="bc" style={{fontSize:44,fontWeight:900,color:"#fff",letterSpacing:1,lineHeight:1,marginBottom:6,textShadow:`0 0 30px ${T.gGlow}`}}>{champion.name}</div>
+            <div className="of" style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,.6)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Predictor League Winner</div>
+            <div className="bc" style={{fontSize:52,fontWeight:900,color:T.gold,lineHeight:1,filter:`drop-shadow(0 0 18px ${T.gGlow})`,marginBottom:6}}>{champScore}</div>
+            <div className="of" style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.5)",letterSpacing:2,textTransform:"uppercase",marginBottom:34}}>points</div>
+            {finalFx&&finalRes&&(
+              <div className="of" style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:14,padding:"12px 20px",marginBottom:34,display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:24}}>{flag(finalFx.h)}</span>
+                <span className="bc" style={{fontSize:18,fontWeight:900,color:"#fff",letterSpacing:1}}>{finalRes.hs!==undefined?`${finalRes.hs}–${finalRes.as}`:(finalRes.r==="H"?"1":finalRes.r==="D"?"X":"2")}</span>
+                <span style={{fontSize:24}}>{flag(finalFx.a)}</span>
+              </div>
+            )}
+            <button className="btn of" onClick={()=>setDismissChamp(true)} style={{background:`linear-gradient(135deg,${T.gold},rgba(196,125,6,.8))`,color:"#0f1c40",border:"none",borderRadius:100,padding:"14px 40px",fontSize:15,fontWeight:900,letterSpacing:1,boxShadow:`0 8px 32px ${T.gGlow}`}}>Enter →</button>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return(
     <>
