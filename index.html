@@ -413,7 +413,7 @@ function App(){
   });
 
   // The tournament is "done" once the Final match has a result entered.
-  const finalFx=getFullBracketFx(state).find(f=>f.round==="final");
+  const finalFx=state?getFullBracketFx(state).find(f=>f.round==="final"):null;
   const finalRes=finalFx?state.results[finalFx.id]:null;
   const tournamentDone=!!(finalFx&&finalRes);
   // The champion of the prediction league = current leaderboard leader.
