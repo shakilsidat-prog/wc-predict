@@ -226,6 +226,16 @@ function App(){
     const t=setInterval(()=>{setPts(v=>{if(v<target)return Math.min(v+step,target);if(v>target)return Math.max(v-step,target);clearInterval(t);return v;});},40);
     return()=>clearInterval(t);
   },[player,state]);
+  // Seed the Final score inputs from whatever's saved in the bin, so a reload
+  // shows the player's existing prediction instead of blank boxes.
+  useEffect(()=>{
+    if(!player||!state)return;
+    const fs=state.finalScores?.[player.id];
+    if(fs&&fs.home!==undefined&&fs.away!==undefined){
+      setFinalH(String(fs.home));
+      setFinalA(String(fs.away));
+    }
+  },[player,state?.finalScores?.[player?.id]?.home,state?.finalScores?.[player?.id]?.away]);
 
   async function load(){
     if(JSONBIN_ID==="PLACEHOLDER"){setState(defaultState());setLoading(false);return;}
