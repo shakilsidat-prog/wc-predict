@@ -546,7 +546,19 @@ function App(){
               <div className="of" style={{fontSize:13,fontWeight:800,color:"#fff",marginTop:5,lineHeight:1.3}}>{fx.a}</div>
             </div>
           </div>
-          {player&&!isAdmin?(<div style={{display:"flex",gap:7}}><button className={cls("H")} onClick={()=>pick("H")} style={{fontSize:22}}>{flag(fx.h)}</button><button className={cls("A")} onClick={()=>pick("A")} style={{fontSize:22}}>{flag(fx.a)}</button></div>)
+          {player&&!isAdmin?(<div style={{display:"flex",gap:7}}>{["H","A"].map(v=>{
+            const sel=myPred===v;
+            const isOk=res&&sel&&res.r===v, isNg=res&&sel&&res.r!==v, isMiss=res&&!sel&&res.r===v;
+            const bgc=isOk||isNg||isMiss?(isOk?"rgba(52,211,153,.28)":isNg?"rgba(248,113,113,.2)":"rgba(52,211,153,.12)")
+              :sel?"rgba(52,211,153,.28)":"rgba(255,255,255,.06)";
+            const bdc=isOk?"rgba(52,211,153,.7)":isNg?"rgba(248,113,113,.5)":isMiss?"rgba(52,211,153,.4)"
+              :sel?"rgba(52,211,153,.75)":"rgba(255,255,255,.14)";
+            return(
+              <button key={v} onClick={()=>pick(v)} className="btn bc" style={{flex:1,borderRadius:12,padding:"11px 0",fontSize:22,textAlign:"center",cursor:res?"default":"pointer",background:bgc,border:`1.5px solid ${bdc}`,boxShadow:sel&&!res?"0 0 18px rgba(52,211,153,.35)":"none",transition:"all .18s"}}>
+                {flag(v==="H"?fx.h:fx.a)}{sel&&!res?<span style={{fontSize:13,color:T.grn,marginLeft:6}}>✓</span>:""}
+              </button>
+            );
+          })}</div>)
           :lk&&!res?(<div className="of" style={{textAlign:"center",fontSize:11,color:T.gold,fontWeight:700,letterSpacing:1}}>🔒 LOCKED</div>):null}
           <ConsBar fxId={fx.id} round={fx.round} myPred={myPred} fx={fx}/>
         </div>
